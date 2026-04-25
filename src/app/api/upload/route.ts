@@ -6,41 +6,33 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File
-    const kurirKode = formData.get('kurir') as string
-    const outletId = formData.get('outlet_id') as string
+    const kurirId = formData.get('kurir_id') as string
     const periode = formData.get('periode') as string
 
-    if (!file || !kurirKode || !outletId) {
-      return NextResponse.json({ error: 'File, kurir, dan outlet wajib diisi' }, { status: 400 })
+    if (!file || !kurirId) {
+      return NextResponse.json({ error: 'File dan ekspedisi wajib diisi' }, { status: 400 })
     }
 
     const supabase = createAdminClient()
 
-    // Ambil kurir_id dari kode
     const { data: kurirData, error: kurirErr } = await supabase
       .from('kurir')
-      .select('id')
-      .eq('kode', kurirKode.toUpperCase())
+      .select('id, kode')
+      .eq('id', kurirId)
       .single()
 
     if (kurirErr || !kurirData) {
-      return NextResponse.json({ error: `Kurir "${kurirKode}" tidak ditemukan` }, { status: 400 })
+      return NextResponse.json({ error: 'Ekspedisi tidak ditemukan' }, { status: 400 })
     }
 
-    // Parse file
     const buffer = Buffer.from(await file.arrayBuffer())
-    const { rows, errors, totalRows } = parseXLSX(buffer, kurirKode)
+    const { rows, errors, totalRows } = parseXLSX(buffer, kurirData.kode)
 
     if (rows.length === 0) {
-      return NextResponse.json({
-        error: 'Tidak ada baris valid yang bisa diimport',
-        details: errors,
-      }, { status: 400 })
+      return NextResponse.json({ error: 'Tidak ada baris valid', details: errors }, { status: 400 })
     }
 
-    // Siapkan data untuk insert
     const insertData = rows.map(row => ({
-      outlet_id: outletId,
       kurir_id: kurirData.id,
       nomor_stt: row.nomor_stt,
       tanggal: row.tanggal,
@@ -73,24 +65,20 @@ export async function POST(req: NextRequest) {
       raw_data: row.raw_data,
     }))
 
-    // Upsert (update jika STT sudah ada, insert jika baru)
-    const { data: inserted, error: insertErr } = await supabase
+    const { data: inserted } = await supabase
       .from('transaksi')
       .upsert(insertData, { onConflict: 'kurir_id,nomor_stt', ignoreDuplicates: false })
       .select('id')
 
     const successRows = inserted?.length || 0
-    const errorRows = totalRows - successRows
 
-    // Simpan log
     await supabase.from('upload_logs').insert({
-      outlet_id: outletId,
       kurir_id: kurirData.id,
       filename: file.name,
       periode,
       total_rows: totalRows,
       success_rows: successRows,
-      error_rows: errorRows + errors.length,
+      error_rows: totalRows - successRows + errors.length,
       errors: errors.length > 0 ? errors : null,
     })
 
@@ -99,7 +87,7 @@ export async function POST(req: NextRequest) {
       totalRows,
       successRows,
       errorRows: errors.length,
-      errors: errors.slice(0, 10), // max 10 errors dikirim ke client
+      errors: errors.slice(0, 10),
     })
 
   } catch (err) {
