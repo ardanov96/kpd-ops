@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic' // ✅ pastikan baris ini ada
+
 export async function GET() {
   const supabase = createAdminClient()
   const { data, error } = await supabase
@@ -8,7 +10,9 @@ export async function GET() {
     .select('*')
     .order('nama')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data || [])
+  return NextResponse.json(data || [], {
+    headers: { 'Cache-Control': 'no-store' },
+  })
 }
 
 export async function POST(req: NextRequest) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 
 const fmt = (n: number) =>
@@ -8,16 +8,57 @@ const fmt = (n: number) =>
   : n >= 1_000   ? `Rp ${(n / 1_000).toFixed(0)}rb`
   : `Rp ${n}`
 
-const STATUS_COLOR: Record<string, string> = { POD: '#22c55e', CNX: '#ef4444', PENDING: '#f59e0b', TRANSIT: '#3b82f6' }
+const fmtFull = (n: number) =>
+  n >= 1_000_000_000 ? `Rp ${(n / 1_000_000_000).toFixed(2)}M`
+  : n >= 1_000_000   ? `Rp ${(n / 1_000_000).toFixed(2)}jt`
+  : n >= 1_000       ? `Rp ${(n / 1_000).toFixed(0)}rb`
+  : `Rp ${n}`
+
+const STATUS_COLOR: Record<string, string> = {
+  POD: '#22c55e', CNX: '#ef4444', PENDING: '#f59e0b', TRANSIT: '#3b82f6', RETURN: '#a855f7'
+}
 
 export default function TransaksiClient({
-  transaksi, totalCount, page, pageSize, kurirList, filters,
+  transaksi, totalCount, page, pageSize, kurirList, filters, summary,
 }: {
-  transaksi: any[]; totalCount: number; page: number; pageSize: number; kurirList: any[]; filters: any
+  transaksi: any[]
+  totalCount: number
+  page: number
+  pageSize: number
+  kurirList: any[]
+  filters: any
+  summary: {
+    subtotalBiaya: number
+    subtotalDiskon: number
+    produkTerpopuler: [string, number] | null
+  }
 }) {
   const router = useRouter()
   const pathname = usePathname()
   const totalPages = Math.ceil(totalCount / pageSize)
+
+  const tableWrapRef = useRef<HTMLDivElement>(null)
+  const topScrollRef = useRef<HTMLDivElement>(null)
+  const [tableWidth, setTableWidth] = useState(0)
+
+  useEffect(() => {
+    const el = tableWrapRef.current
+    if (!el) return
+    const update = () => setTableWidth(el.scrollWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [transaksi])
+
+  function onTopScroll() {
+    if (tableWrapRef.current && topScrollRef.current)
+      tableWrapRef.current.scrollLeft = topScrollRef.current.scrollLeft
+  }
+  function onTableScroll() {
+    if (tableWrapRef.current && topScrollRef.current)
+      topScrollRef.current.scrollLeft = tableWrapRef.current.scrollLeft
+  }
 
   function updateFilter(key: string, value: string) {
     const params = new URLSearchParams(filters)
@@ -33,96 +74,181 @@ export default function TransaksiClient({
     router.push(`${pathname}?${params.toString()}`)
   }
 
+  function pageRange() {
+    const delta = 2
+    const range: number[] = []
+    for (let i = Math.max(1, page - delta); i <= Math.min(totalPages, page + delta); i++) {
+      range.push(i)
+    }
+    return range
+  }
+
+  const COLS = [
+    { label: 'Tanggal', w: 90 }, { label: 'No. STT', w: 160 },
+    { label: 'Kurir', w: 70 }, { label: 'Kota Tujuan', w: 130 },
+    { label: 'Produk', w: 90 }, { label: 'Komoditas', w: 150 },
+    { label: 'Koli', w: 50 }, { label: 'Berat', w: 70 },
+    { label: 'Total Biaya', w: 100 }, { label: 'Diskon', w: 80 },
+    { label: 'Status', w: 90 },
+  ]
+
   return (
+    
     <div style={{ padding: 28 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800 }}>Transaksi</h1>
-          <p style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>{totalCount.toLocaleString('id-ID')} total data</p>
-        </div>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800 }}>Transaksi</h1>
+        <p style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>{totalCount.toLocaleString('id-ID')} total data</p>
       </div>
 
-      {/* Filters */}
-      <div className="card" style={{ padding: '14px 16px', marginBottom: 20, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select
-          className="input-base"
-          style={{ width: 'auto', minWidth: 140 }}
-          value={filters.kurir || ''}
-          onChange={e => updateFilter('kurir', e.target.value)}
-        >
+      {/* Filter */}
+      <div className="card" style={{ padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select className="input-base" style={{ width: 'auto', minWidth: 150 }}
+          value={filters.kurir || ''} onChange={e => updateFilter('kurir', e.target.value)}>
           <option value="">Semua Kurir</option>
           {kurirList.map((k: any) => <option key={k.kode} value={k.kode}>{k.nama}</option>)}
         </select>
 
-        <select
-          className="input-base"
-          style={{ width: 'auto', minWidth: 140 }}
-          value={filters.status || ''}
-          onChange={e => updateFilter('status', e.target.value)}
-        >
+        <select className="input-base" style={{ width: 'auto', minWidth: 150 }}
+          value={filters.status || ''} onChange={e => updateFilter('status', e.target.value)}>
           <option value="">Semua Status</option>
-          {['POD', 'CNX', 'PENDING', 'TRANSIT', 'RETURN'].map(s => <option key={s} value={s}>{s}</option>)}
+          {['POD', 'CNX', 'PENDING', 'TRANSIT', 'RETURN'].map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
         </select>
 
-        <input
-          className="input-base"
-          style={{ width: 160 }}
-          type="month"
-          value={filters.periode || ''}
-          onChange={e => updateFilter('periode', e.target.value)}
-          placeholder="Filter bulan"
-        />
+        <input className="input-base" style={{ width: 160, colorScheme: 'dark' }}
+          type="month" value={filters.periode || ''}
+          onChange={e => updateFilter('periode', e.target.value)} />
 
         {(filters.kurir || filters.status || filters.periode) && (
-          <button
-            onClick={() => router.push(pathname)}
-            style={{ background: '#1e2433', border: '1px solid #2d3748', borderRadius: 8, padding: '8px 14px', color: '#94a3b8', fontSize: 13, cursor: 'pointer' }}>
-            ✕ Reset
-          </button>
+          <button onClick={() => router.push(pathname)} style={{
+            background: '#1e2433', border: '1px solid #2d3748', borderRadius: 8,
+            padding: '8px 14px', color: '#94a3b8', fontSize: 13, cursor: 'pointer',
+          }}>✕ Reset</button>
         )}
 
         <span style={{ marginLeft: 'auto', fontSize: 12, color: '#475569' }}>
-          Halaman {page} dari {totalPages}
+          Hal {page} dari {totalPages || 1} · {totalCount.toLocaleString('id-ID')} data
         </span>
       </div>
 
-      {/* Table */}
+            {/* ✅ Ringkasan bawah */}
+<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 20, marginBottom: 20 }}>
+
+  {/* Subtotal Biaya */}
+  <div className="card" style={{ padding: '18px 20px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div style={{
+        background: '#f9731620', borderRadius: 8, width: 36, height: 36,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+      }}>💰</div>
+      <div>
+        <div style={{ fontSize: 12, color: '#64748b' }}>Subtotal Biaya</div>
+        <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX{filters.status ? ` · filter: ${filters.status}` : ''}</div>
+      </div>
+    </div>
+    <div style={{ fontSize: 22, fontWeight: 800, color: '#f97316' }}>
+      {fmtFull(summary.subtotalBiaya)}
+    </div>
+  </div>
+
+  {/* Subtotal Diskon */}
+  <div className="card" style={{ padding: '18px 20px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div style={{
+        background: '#a855f720', borderRadius: 8, width: 36, height: 36,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+      }}>🏷️</div>
+      <div>
+        <div style={{ fontSize: 12, color: '#64748b' }}>Subtotal Diskon</div>
+        <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX{filters.status ? ` · filter: ${filters.status}` : ''}</div>
+      </div>
+    </div>
+    <div style={{ fontSize: 22, fontWeight: 800, color: '#a855f7' }}>
+      {fmtFull(summary.subtotalDiskon)}
+    </div>
+  </div>
+
+  {/* Produk Terpopuler */}
+  <div className="card" style={{ padding: '18px 20px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div style={{
+        background: '#22c55e20', borderRadius: 8, width: 36, height: 36,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+      }}>📦</div>
+      <div>
+        <div style={{ fontSize: 12, color: '#64748b' }}>Produk Terpopuler</div>
+        <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX</div>
+      </div>
+    </div>
+    {summary.produkTerpopuler ? (
+      <div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: '#22c55e' }}>
+          {summary.produkTerpopuler[0]}
+        </div>
+        <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+          {summary.produkTerpopuler[1].toLocaleString('id-ID')} pengiriman
+        </div>
+      </div>
+    ) : (
+      <div style={{ fontSize: 14, color: '#475569' }}>—</div>
+    )}
+  </div>
+
+</div>
+
+      {/* Table card */}
       <div className="card" style={{ overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+
+        {/* ✅ Scrollbar mirror atas */}
+        <div ref={topScrollRef} onScroll={onTopScroll}
+          style={{ overflowX: 'auto', overflowY: 'hidden', height: 12, borderBottom: '1px solid #1e2433' }}>
+          <div style={{ width: tableWidth, height: 1 }} />
+        </div>
+
+        {/* Tabel */}
+        <div ref={tableWrapRef} onScroll={onTableScroll} style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 900 }}>
             <thead>
               <tr style={{ background: '#0d111c' }}>
-                {['Tanggal', 'No. STT', 'Kurir', 'Kota Tujuan', 'Produk', 'Komoditas', 'Koli', 'Berat', 'Total Biaya', 'Diskon', 'Status'].map(h => (
-                  <th key={h} style={{ padding: '11px 14px', textAlign: 'left', color: '#64748b', fontWeight: 600, borderBottom: '1px solid #1e2433', whiteSpace: 'nowrap' }}>{h}</th>
+                {COLS.map(h => (
+                  <th key={h.label} style={{
+                    padding: '11px 14px', textAlign: 'left', color: '#64748b', fontWeight: 600,
+                    borderBottom: '1px solid #1e2433', whiteSpace: 'nowrap', minWidth: h.w,
+                    position: 'sticky', top: 0, background: '#0d111c', zIndex: 1,
+                  }}>{h.label}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {transaksi.map((tx, i) => (
+              {transaksi.map((tx) => (
                 <tr key={tx.id}
                   style={{ borderBottom: '1px solid #1e2433', transition: 'background 0.1s' }}
                   onMouseEnter={e => (e.currentTarget.style.background = '#1e243330')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                   <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{tx.tanggal?.slice(0, 10)}</td>
-                  <td style={{ padding: '9px 14px', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#94a3b8' }}>{tx.nomor_stt}</td>
+                  <td style={{ padding: '9px 14px', fontFamily: 'monospace', fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>{tx.nomor_stt}</td>
                   <td style={{ padding: '9px 14px' }}>
-                    <span style={{ background: (tx.kurir?.warna || '#64748b') + '25', color: tx.kurir?.warna || '#94a3b8', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
-                      {tx.kurir?.kode || '—'}
-                    </span>
+                    <span style={{
+                      background: `${tx.kurir?.warna || '#64748b'}25`, color: tx.kurir?.warna || '#94a3b8',
+                      padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                    }}>{tx.kurir?.kode || '—'}</span>
                   </td>
-                  <td style={{ padding: '9px 14px', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {tx.kota_tujuan?.split('-')[1] || tx.kota_tujuan || '—'}
+                  <td style={{ padding: '9px 14px', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {tx.kota_tujuan?.split('-')[1]?.trim() || tx.kota_tujuan || '—'}
                   </td>
-                  <td style={{ padding: '9px 14px', color: '#94a3b8' }}>{tx.nama_produk || '—'}</td>
-                  <td style={{ padding: '9px 14px', color: '#94a3b8', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.komoditas || '—'}</td>
+                  <td style={{ padding: '9px 14px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{tx.nama_produk || '—'}</td>
+                  <td style={{ padding: '9px 14px', color: '#94a3b8', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.komoditas || '—'}</td>
                   <td style={{ padding: '9px 14px', color: '#64748b', textAlign: 'center' }}>{tx.koli}</td>
-                  <td style={{ padding: '9px 14px', color: '#64748b' }}>{tx.berat_kena_biaya} kg</td>
+                  <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{tx.berat_kena_biaya} kg</td>
                   <td style={{ padding: '9px 14px', fontWeight: 700, color: '#f97316', whiteSpace: 'nowrap' }}>{fmt(tx.total_biaya || 0)}</td>
                   <td style={{ padding: '9px 14px', color: '#a855f7', whiteSpace: 'nowrap' }}>{fmt(tx.diskon_booking || 0)}</td>
                   <td style={{ padding: '9px 14px' }}>
-                    <span style={{ background: (STATUS_COLOR[tx.status] || '#64748b') + '25', color: STATUS_COLOR[tx.status] || '#64748b', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-                      {tx.status || '—'}
-                    </span>
+                    <span style={{
+                      background: `${STATUS_COLOR[tx.status] || '#64748b'}25`,
+                      color: STATUS_COLOR[tx.status] || '#64748b',
+                      padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                    }}>{tx.status || '—'}</span>
                   </td>
                 </tr>
               ))}
@@ -139,28 +265,42 @@ export default function TransaksiClient({
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div style={{ padding: '14px 16px', borderTop: '1px solid #1e2433', display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
-            <button onClick={() => goPage(page - 1)} disabled={page <= 1}
-              style={{ background: '#1e2433', border: 'none', borderRadius: 6, padding: '6px 14px', color: page <= 1 ? '#2d3748' : '#94a3b8', cursor: page <= 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}>
-              ← Prev
-            </button>
-            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-              const p = Math.max(1, page - 2) + i
-              if (p > totalPages) return null
-              return (
-                <button key={p} onClick={() => goPage(p)}
-                  style={{ background: p === page ? 'linear-gradient(135deg, #f97316, #ef4444)' : '#1e2433', border: 'none', borderRadius: 6, padding: '6px 12px', color: p === page ? '#fff' : '#94a3b8', cursor: 'pointer', fontSize: 13, fontWeight: p === page ? 700 : 400 }}>
-                  {p}
-                </button>
-              )
-            })}
-            <button onClick={() => goPage(page + 1)} disabled={page >= totalPages}
-              style={{ background: '#1e2433', border: 'none', borderRadius: 6, padding: '6px 14px', color: page >= totalPages ? '#2d3748' : '#94a3b8', cursor: page >= totalPages ? 'not-allowed' : 'pointer', fontSize: 13 }}>
-              Next →
-            </button>
+          <div style={{
+            padding: '14px 16px', borderTop: '1px solid #1e2433',
+            display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center',
+          }}>
+            <button onClick={() => goPage(1)} disabled={page <= 1} style={{
+              background: '#1e2433', border: 'none', borderRadius: 6, padding: '6px 10px',
+              color: page <= 1 ? '#2d3748' : '#94a3b8', cursor: page <= 1 ? 'not-allowed' : 'pointer', fontSize: 12,
+            }}>«</button>
+            <button onClick={() => goPage(page - 1)} disabled={page <= 1} style={{
+              background: '#1e2433', border: 'none', borderRadius: 6, padding: '6px 12px',
+              color: page <= 1 ? '#2d3748' : '#94a3b8', cursor: page <= 1 ? 'not-allowed' : 'pointer', fontSize: 12,
+            }}>← Prev</button>
+
+            {pageRange()[0] > 1 && <span style={{ color: '#475569', fontSize: 12 }}>…</span>}
+            {pageRange().map(p => (
+              <button key={p} onClick={() => goPage(p)} style={{
+                background: p === page ? 'linear-gradient(135deg, #f97316, #ef4444)' : '#1e2433',
+                border: 'none', borderRadius: 6, padding: '6px 12px',
+                color: p === page ? '#fff' : '#94a3b8', cursor: 'pointer',
+                fontSize: 13, fontWeight: p === page ? 700 : 400, minWidth: 36,
+              }}>{p}</button>
+            ))}
+            {pageRange()[pageRange().length - 1] < totalPages && <span style={{ color: '#475569', fontSize: 12 }}>…</span>}
+
+            <button onClick={() => goPage(page + 1)} disabled={page >= totalPages} style={{
+              background: '#1e2433', border: 'none', borderRadius: 6, padding: '6px 12px',
+              color: page >= totalPages ? '#2d3748' : '#94a3b8', cursor: page >= totalPages ? 'not-allowed' : 'pointer', fontSize: 12,
+            }}>Next →</button>
+            <button onClick={() => goPage(totalPages)} disabled={page >= totalPages} style={{
+              background: '#1e2433', border: 'none', borderRadius: 6, padding: '6px 10px',
+              color: page >= totalPages ? '#2d3748' : '#94a3b8', cursor: page >= totalPages ? 'not-allowed' : 'pointer', fontSize: 12,
+            }}>»</button>
           </div>
         )}
       </div>
+
     </div>
   )
 }

@@ -9,7 +9,10 @@ const fmt = (n: number) =>
   : `Rp ${n}`
 
 const fmtFull = (n: number) =>
-  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
+  n >= 1_000_000_000 ? `Rp ${(n / 1_000_000_000).toFixed(2)}M`
+  : n >= 1_000_000   ? `Rp ${(n / 1_000_000).toFixed(2)}jt`
+  : n >= 1_000       ? `Rp ${(n / 1_000).toFixed(0)}rb`
+  : `Rp ${n}`
 
 const STATUS_COLOR: Record<string, string> = { POD: '#22c55e', CNX: '#ef4444', PENDING: '#f59e0b', TRANSIT: '#3b82f6' }
 const KURIR_COLOR: Record<string, string> = { LION: '#f97316', JNE: '#ef4444', JNT: '#22c55e', WAHANA: '#3b82f6' }
@@ -318,6 +321,10 @@ export default function OverviewClient({
           )}
         </div>
       )}
+
+      
     </div>
+
+    
   )
 }

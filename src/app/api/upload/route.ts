@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
 
     const successRows = inserted?.length || 0
 
-    await supabase.from('upload_logs').insert({
+    const { error: logError } = await supabase.from('upload_logs').insert({
       kurir_id: kurirData.id,
       filename: file.name,
       periode,
@@ -81,6 +81,8 @@ export async function POST(req: NextRequest) {
       error_rows: totalRows - successRows + errors.length,
       errors: errors.length > 0 ? errors : null,
     })
+
+    if (logError) console.error('LOG ERROR:', JSON.stringify(logError))
 
     return NextResponse.json({
       success: true,
