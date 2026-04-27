@@ -9,10 +9,7 @@ const fmt = (n: number) =>
   : `Rp ${n}`
 
 const fmtFull = (n: number) =>
-  n >= 1_000_000_000 ? `Rp ${(n / 1_000_000_000).toFixed(2)}M`
-  : n >= 1_000_000   ? `Rp ${(n / 1_000_000).toFixed(2)}jt`
-  : n >= 1_000       ? `Rp ${(n / 1_000).toFixed(0)}rb`
-  : `Rp ${n}`
+  'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
 
 const STATUS_COLOR: Record<string, string> = {
   POD: '#22c55e', CNX: '#ef4444', PENDING: '#f59e0b', TRANSIT: '#3b82f6', RETURN: '#a855f7'
@@ -30,7 +27,11 @@ export default function TransaksiClient({
   summary: {
     subtotalBiaya: number
     subtotalDiskon: number
+    subtotalDiskonAsuransi: number    
+    subtotalDiskonFwdRate: number     
+    subtotalNetProfit: number         
     produkTerpopuler: [string, number] | null
+    komoditasTerpopuler: [string, number] | null  
   }
 }) {
   const router = useRouter()
@@ -84,11 +85,20 @@ export default function TransaksiClient({
   }
 
   const COLS = [
-    { label: 'Tanggal', w: 90 }, { label: 'No. STT', w: 160 },
-    { label: 'Kurir', w: 70 }, { label: 'Kota Tujuan', w: 130 },
-    { label: 'Produk', w: 90 }, { label: 'Komoditas', w: 150 },
-    { label: 'Koli', w: 50 }, { label: 'Berat', w: 70 },
-    { label: 'Total Biaya', w: 100 }, { label: 'Diskon', w: 80 },
+    { label: 'Tanggal', w: 90 },
+    { label: 'No. STT', w: 160 },
+    { label: 'Kurir', w: 70 },
+    { label: 'Kota Tujuan', w: 130 },
+    { label: 'Produk', w: 90 },
+    { label: 'Komoditas', w: 150 },
+    { label: 'Koli', w: 50 },
+    { label: 'Berat', w: 70 },
+    { label: 'Biaya Asuransi', w: 110 },   // ✅ tambah
+    { label: 'Total Biaya', w: 100 },
+    { label: 'Potongan', w: 90 },           // ✅ tambah
+    { label: 'Diskon Booking', w: 110 },    // ✅ pecah diskon
+    { label: 'Diskon Asuransi', w: 110 },   // ✅ pecah diskon
+    { label: 'Diskon Fwd Rate', w: 110 },   // ✅ pecah diskon
     { label: 'Status', w: 90 },
   ]
 
@@ -132,50 +142,61 @@ export default function TransaksiClient({
         </span>
       </div>
 
-            {/* ✅ Ringkasan bawah */}
-<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 20, marginBottom: 20 }}>
+{/* ✅ Ringkasan bawah — baris 1 */}
+<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 20 }}>
 
-  {/* Subtotal Biaya */}
   <div className="card" style={{ padding: '18px 20px' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-      <div style={{
-        background: '#f9731620', borderRadius: 8, width: 36, height: 36,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-      }}>💰</div>
+      <div style={{ background: '#f9731620', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>💰</div>
       <div>
         <div style={{ fontSize: 12, color: '#64748b' }}>Subtotal Biaya</div>
-        <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX{filters.status ? ` · filter: ${filters.status}` : ''}</div>
+        <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX{filters.status ? ` · ${filters.status}` : ''}</div>
       </div>
     </div>
-    <div style={{ fontSize: 22, fontWeight: 800, color: '#f97316' }}>
-      {fmtFull(summary.subtotalBiaya)}
-    </div>
+    <div style={{ fontSize: 22, fontWeight: 800, color: '#f97316' }}>{fmtFull(summary.subtotalBiaya)}</div>
   </div>
 
-  {/* Subtotal Diskon */}
   <div className="card" style={{ padding: '18px 20px' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-      <div style={{
-        background: '#a855f720', borderRadius: 8, width: 36, height: 36,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-      }}>🏷️</div>
+      <div style={{ background: '#a855f720', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🏷️</div>
       <div>
-        <div style={{ fontSize: 12, color: '#64748b' }}>Subtotal Diskon</div>
-        <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX{filters.status ? ` · filter: ${filters.status}` : ''}</div>
+        <div style={{ fontSize: 12, color: '#64748b' }}>Subtotal Diskon Booking</div>
+        <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX</div>
       </div>
     </div>
-    <div style={{ fontSize: 22, fontWeight: 800, color: '#a855f7' }}>
-      {fmtFull(summary.subtotalDiskon)}
-    </div>
+    <div style={{ fontSize: 22, fontWeight: 800, color: '#a855f7' }}>{fmtFull(summary.subtotalDiskon)}</div>
   </div>
 
-  {/* Produk Terpopuler */}
   <div className="card" style={{ padding: '18px 20px' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-      <div style={{
-        background: '#22c55e20', borderRadius: 8, width: 36, height: 36,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-      }}>📦</div>
+      <div style={{ background: '#06b6d420', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🛡️</div>
+      <div>
+        <div style={{ fontSize: 12, color: '#64748b' }}>Subtotal Diskon Asuransi</div>
+        <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX</div>
+      </div>
+    </div>
+    <div style={{ fontSize: 22, fontWeight: 800, color: '#06b6d4' }}>{fmtFull(summary.subtotalDiskonAsuransi)}</div>
+  </div>
+
+</div>
+
+{/* ✅ Ringkasan bawah — baris 2 */}
+<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 16, marginBottom: 24 }}>
+
+  <div className="card" style={{ padding: '18px 20px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div style={{ background: '#22c55e20', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>💹</div>
+      <div>
+        <div style={{ fontSize: 12, color: '#64748b' }}>Subtotal Net Profit</div>
+        <div style={{ fontSize: 10, color: '#475569' }}>Booking + Asuransi + Fwd Rate</div>
+      </div>
+    </div>
+    <div style={{ fontSize: 22, fontWeight: 800, color: '#22c55e' }}>{fmtFull(summary.subtotalNetProfit)}</div>
+  </div>
+
+  <div className="card" style={{ padding: '18px 20px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div style={{ background: '#22c55e20', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📦</div>
       <div>
         <div style={{ fontSize: 12, color: '#64748b' }}>Produk Terpopuler</div>
         <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX</div>
@@ -183,16 +204,26 @@ export default function TransaksiClient({
     </div>
     {summary.produkTerpopuler ? (
       <div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: '#22c55e' }}>
-          {summary.produkTerpopuler[0]}
-        </div>
-        <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-          {summary.produkTerpopuler[1].toLocaleString('id-ID')} pengiriman
-        </div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: '#22c55e' }}>{summary.produkTerpopuler[0]}</div>
+        <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{summary.produkTerpopuler[1].toLocaleString('id-ID')} pengiriman</div>
       </div>
-    ) : (
-      <div style={{ fontSize: 14, color: '#475569' }}>—</div>
-    )}
+    ) : <div style={{ fontSize: 14, color: '#475569' }}>—</div>}
+  </div>
+
+  <div className="card" style={{ padding: '18px 20px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div style={{ background: '#f59e0b20', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🏷️</div>
+      <div>
+        <div style={{ fontSize: 12, color: '#64748b' }}>Komoditas Terpopuler</div>
+        <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX</div>
+      </div>
+    </div>
+    {summary.komoditasTerpopuler ? (
+      <div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: '#f59e0b' }}>{summary.komoditasTerpopuler[0]}</div>
+        <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{summary.komoditasTerpopuler[1].toLocaleString('id-ID')} pengiriman</div>
+      </div>
+    ) : <div style={{ fontSize: 14, color: '#475569' }}>—</div>}
   </div>
 
 </div>
@@ -241,8 +272,34 @@ export default function TransaksiClient({
                   <td style={{ padding: '9px 14px', color: '#94a3b8', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.komoditas || '—'}</td>
                   <td style={{ padding: '9px 14px', color: '#64748b', textAlign: 'center' }}>{tx.koli}</td>
                   <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{tx.berat_kena_biaya} kg</td>
+
+                  {/* ✅ Biaya Asuransi */}
+                  <td style={{ padding: '9px 14px', color: '#06b6d4', whiteSpace: 'nowrap' }}>
+                    {tx.biaya_asuransi ? fmt(tx.biaya_asuransi) : '—'}
+                  </td>
+
                   <td style={{ padding: '9px 14px', fontWeight: 700, color: '#f97316', whiteSpace: 'nowrap' }}>{fmt(tx.total_biaya || 0)}</td>
-                  <td style={{ padding: '9px 14px', color: '#a855f7', whiteSpace: 'nowrap' }}>{fmt(tx.diskon_booking || 0)}</td>
+
+                  {/* ✅ Potongan */}
+                  <td style={{ padding: '9px 14px', color: '#ef4444', whiteSpace: 'nowrap' }}>
+                    {tx.potongan ? fmt(tx.potongan) : '—'}
+                  </td>
+
+                  {/* ✅ Diskon Booking */}
+                  <td style={{ padding: '9px 14px', color: '#a855f7', whiteSpace: 'nowrap' }}>
+                    {tx.diskon_booking ? fmt(tx.diskon_booking) : '—'}
+                  </td>
+
+                  {/* ✅ Diskon Asuransi */}
+                  <td style={{ padding: '9px 14px', color: '#a855f7', whiteSpace: 'nowrap' }}>
+                    {tx.diskon_asuransi ? fmt(tx.diskon_asuransi) : '—'}
+                  </td>
+
+                  {/* ✅ Diskon Forward Rate */}
+                  <td style={{ padding: '9px 14px', color: '#a855f7', whiteSpace: 'nowrap' }}>
+                    {tx.diskon_forward_rate ? fmt(tx.diskon_forward_rate) : '—'}
+                  </td>
+
                   <td style={{ padding: '9px 14px' }}>
                     <span style={{
                       background: `${STATUS_COLOR[tx.status] || '#64748b'}25`,

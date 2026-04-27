@@ -65,10 +65,13 @@ export async function POST(req: NextRequest) {
       raw_data: row.raw_data,
     }))
 
-    const { data: inserted } = await supabase
+    const { data: inserted, error: insertErr } = await supabase
       .from('transaksi')
       .upsert(insertData, { onConflict: 'kurir_id,nomor_stt', ignoreDuplicates: false })
       .select('id')
+
+    if (insertErr) console.error('INSERT ERROR:', JSON.stringify(insertErr, null, 2))
+      console.log('Insert attempted:', insertData.length, 'rows, success:', inserted?.length || 0)
 
     const successRows = inserted?.length || 0
 
