@@ -46,7 +46,8 @@ export default function OverviewClient({
   summary: any[]; recentTx: any[]; grandTotal: any[]
 }) {
   const [activeTab, setActiveTab] = useState<'overview' | 'tren' | 'kurir'>('overview')
-  const [selectedKurir, setSelectedKurir] = useState<string>('') // ✅ filter ekspedisi
+  const [selectedKurir, setSelectedKurir] = useState<string>('') 
+  const [selectedPeriode, setSelectedPeriode] = useState('')
 
   // ✅ Daftar ekspedisi unik dari grandTotal
   const kurirOptions = useMemo(() => {
@@ -59,19 +60,23 @@ export default function OverviewClient({
     return Object.values(map)
   }, [grandTotal])
 
-  // ✅ Filter semua data berdasarkan selectedKurir
-  const filteredGrandTotal = useMemo(() =>
-    selectedKurir ? grandTotal.filter(d => d.kurir?.kode === selectedKurir) : grandTotal,
-    [grandTotal, selectedKurir]
-  )
-  const filteredRecentTx = useMemo(() =>
-    selectedKurir ? recentTx.filter(d => d.kurir?.kode === selectedKurir) : recentTx,
-    [recentTx, selectedKurir]
-  )
-  const filteredSummary = useMemo(() =>
-    selectedKurir ? summary.filter(d => d.kurir === selectedKurir) : summary,
-    [summary, selectedKurir]
-  )
+  const filteredGrandTotal = useMemo(() => {
+    let data = selectedKurir ? grandTotal.filter(d => d.kurir?.kode === selectedKurir) : grandTotal
+    if (selectedPeriode) data = data.filter(d => d.tanggal?.slice(0, 7) === selectedPeriode)
+    return data
+  }, [grandTotal, selectedKurir, selectedPeriode])
+
+  const filteredRecentTx = useMemo(() => {
+    let data = selectedKurir ? recentTx.filter(d => d.kurir?.kode === selectedKurir) : recentTx
+    if (selectedPeriode) data = data.filter(d => d.tanggal?.slice(0, 7) === selectedPeriode)
+    return data
+  }, [recentTx, selectedKurir, selectedPeriode])
+
+  const filteredSummary = useMemo(() => {
+    let data = selectedKurir ? summary.filter(d => d.kurir === selectedKurir) : summary
+    if (selectedPeriode) data = data.filter(d => d.periode === selectedPeriode)
+    return data
+  }, [summary, selectedKurir, selectedPeriode])
 
   const selectedKurirInfo = kurirOptions.find(k => k.kode === selectedKurir)
 
@@ -140,12 +145,18 @@ export default function OverviewClient({
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.3px' }}>Dashboard Overview</h1>
           <p style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>
-            {selectedKurir ? `Data ekspedisi ${selectedKurirInfo?.nama || selectedKurir}` : 'Semua data transaksi lintas ekspedisi'}
+            {selectedKurir && selectedPeriode
+              ? `${selectedKurirInfo?.nama} · ${selectedPeriode}`
+              : selectedKurir
+              ? `Data ekspedisi ${selectedKurirInfo?.nama}`
+              : selectedPeriode
+              ? `Semua ekspedisi · ${selectedPeriode}`
+              : 'Semua data transaksi lintas ekspedisi'}
           </p>
         </div>
 
-        {/* ✅ Filter Ekspedisi */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {/* Filter Ekspedisi */}
           <select
             value={selectedKurir}
             onChange={e => setSelectedKurir(e.target.value)}
@@ -160,11 +171,56 @@ export default function OverviewClient({
           >
             <option value="">🚚 Semua Ekspedisi</option>
             {kurirOptions.map(k => (
-              <option key={k.kode} value={k.kode}>
-                {k.nama} ({k.kode})
-              </option>
+              <option key={k.kode} value={k.kode}>{k.nama} ({k.kode})</option>
             ))}
           </select>
+
+          {/* ✅ Filter Periode */}
+          <input
+            type="month"
+            value={selectedPeriode}
+            onChange={e => setSelectedPeriode(e.target.value)}
+            style={{
+              background: '#1e2433',
+              border: `1px solid ${selectedPeriode ? '#f97316' : '#2d3748'}`,
+              borderRadius: 8, padding: '7px 14px',
+              color: selectedPeriode ? '#f97316' : '#94a3b8',
+              fontSize: 13, cursor: 'pointer',
+              outline: 'none', colorScheme: 'dark',
+            }}
+          />
+
+          {/* Banner — hanya tampil jika ada filter aktif */}
+          {(selectedKurir || selectedPeriode) && (
+            <div style={{
+              background: selectedKurirInfo ? `${selectedKurirInfo.warna}15` : '#f9731615',
+              border: `1px solid ${selectedKurirInfo ? selectedKurirInfo.warna : '#f97316'}40`,
+              borderRadius: 10, padding: '10px 16px', marginBottom: 20,
+              display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+            }}>
+              {selectedKurir && selectedKurirInfo && (
+                <span style={{
+                  background: `${selectedKurirInfo.warna}25`, color: selectedKurirInfo.warna,
+                  border: `1px solid ${selectedKurirInfo.warna}50`,
+                  padding: '3px 12px', borderRadius: 6, fontSize: 13, fontWeight: 700,
+                }}>{selectedKurirInfo.kode}</span>
+              )}
+              {selectedPeriode && (
+                <span style={{
+                  background: '#f9731625', color: '#f97316',
+                  border: '1px solid #f9731650',
+                  padding: '3px 12px', borderRadius: 6, fontSize: 13, fontWeight: 700,
+                }}>📅 {selectedPeriode}</span>
+              )}
+              <span style={{ fontSize: 12, color: '#64748b' }}>
+                — Menampilkan {filteredGrandTotal.length} transaksi
+              </span>
+              <button onClick={() => { setSelectedKurir(''); setSelectedPeriode('') }} style={{
+                marginLeft: 'auto', background: 'transparent', border: 'none',
+                color: '#64748b', cursor: 'pointer', fontSize: 13,
+              }}>✕ Reset</button>
+            </div>
+          )}
 
           <div style={{ fontSize: 12, color: '#475569', background: '#1e2433', padding: '6px 14px', borderRadius: 8 }}>
             {filteredGrandTotal.length} transaksi

@@ -16,10 +16,7 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient()
 
     const { data: kurirData, error: kurirErr } = await supabase
-      .from('kurir')
-      .select('id, kode')
-      .eq('id', kurirId)
-      .single()
+      .from('kurir').select('id, kode').eq('id', kurirId).single()
 
     if (kurirErr || !kurirData) {
       return NextResponse.json({ error: 'Ekspedisi tidak ditemukan' }, { status: 400 })
@@ -31,6 +28,20 @@ export async function POST(req: NextRequest) {
     if (rows.length === 0) {
       return NextResponse.json({ error: 'Tidak ada baris valid', details: errors }, { status: 400 })
     }
+
+    // ✅ Cek duplikat STT yang sudah ada di database
+    const nomorSttList = rows.map(r => r.nomor_stt).filter(Boolean)
+    const { data: existing } = await supabase
+      .from('transaksi')
+      .select('nomor_stt, tanggal, periode:tanggal')
+      .eq('kurir_id', kurirData.id)
+      .in('nomor_stt', nomorSttList)
+
+    const duplikatMap: Record<string, string> = {}
+    existing?.forEach(e => {
+      duplikatMap[e.nomor_stt] = e.tanggal?.slice(0, 7) || '—'
+    })
+    const duplikatList = Object.entries(duplikatMap).map(([stt, periode]) => ({ stt, periode }))
 
     const insertData = rows.map(row => ({
       kurir_id: kurirData.id,
@@ -71,7 +82,6 @@ export async function POST(req: NextRequest) {
       .select('id')
 
     if (insertErr) console.error('INSERT ERROR:', JSON.stringify(insertErr, null, 2))
-      console.log('Insert attempted:', insertData.length, 'rows, success:', inserted?.length || 0)
 
     const successRows = inserted?.length || 0
 
@@ -93,6 +103,8 @@ export async function POST(req: NextRequest) {
       successRows,
       errorRows: errors.length,
       errors: errors.slice(0, 10),
+      duplikat: duplikatList,        // ✅ kirim ke client
+      duplikatCount: duplikatList.length,
     })
 
   } catch (err) {

@@ -243,12 +243,43 @@ export default function UploadClient({ logs }: { logs: any[] }) {
               </div>
             )}
             {result && (
-              <div style={{ background: '#22c55e20', border: '1px solid #22c55e40', borderRadius: 8, padding: '12px 14px', fontSize: 13 }}>
-                <div style={{ color: '#22c55e', fontWeight: 700, marginBottom: 4 }}>✅ Import Berhasil!</div>
-                <div style={{ color: '#94a3b8' }}>
-                  Total: <b>{result.totalRows}</b> · Sukses: <b style={{ color: '#22c55e' }}>{result.successRows}</b>
-                  {result.errorRows > 0 && <> · Error: <b style={{ color: '#f59e0b' }}>{result.errorRows}</b></>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* Sukses */}
+                <div style={{ background: '#22c55e20', border: '1px solid #22c55e40', borderRadius: 8, padding: '12px 14px', fontSize: 13 }}>
+                  <div style={{ color: '#22c55e', fontWeight: 700, marginBottom: 4 }}>✅ Import Berhasil!</div>
+                  <div style={{ color: '#94a3b8' }}>
+                    Total: <b>{result.totalRows}</b> · Sukses: <b style={{ color: '#22c55e' }}>{result.successRows}</b>
+                    {result.errorRows > 0 && <> · Error: <b style={{ color: '#f59e0b' }}>{result.errorRows}</b></>}
+                  </div>
                 </div>
+
+                {/* ✅ Notifikasi duplikat */}
+                {result.duplikatCount > 0 && (
+                  <div style={{ background: '#f59e0b15', border: '1px solid #f59e0b40', borderRadius: 8, padding: '12px 14px', fontSize: 13 }}>
+                    <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: 8 }}>
+                      ⚠️ {result.duplikatCount} STT duplikat ditemukan — data diperbarui
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
+                      STT berikut sudah ada di database dan telah diperbarui dengan data terbaru:
+                    </div>
+                    <div style={{ maxHeight: 120, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {result.duplikat.slice(0, 20).map((d: { stt: string; periode: string }) => (
+                        <div key={d.stt} style={{
+                          display: 'flex', justifyContent: 'space-between',
+                          background: '#0d111c', borderRadius: 6, padding: '5px 10px',
+                        }}>
+                          <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#94a3b8' }}>{d.stt}</span>
+                          <span style={{ fontSize: 11, color: '#f59e0b' }}>periode {d.periode}</span>
+                        </div>
+                      ))}
+                      {result.duplikat.length > 20 && (
+                        <div style={{ fontSize: 11, color: '#475569', textAlign: 'center', paddingTop: 4 }}>
+                          ...dan {result.duplikat.length - 20} STT lainnya
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

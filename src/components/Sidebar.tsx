@@ -5,16 +5,22 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV = [
-  { href: '/dashboard',            icon: '📊', label: 'Ringkasan' },
-  { href: '/dashboard/transaksi',  icon: '📦', label: 'Transaksi' },
-  { href: '/dashboard/upload',     icon: '📤', label: 'Import Laporan' },
+  { href: '/dashboard',           icon: '📊', label: 'Ringkasan' },
+  { href: '/dashboard/transaksi', icon: '📦', label: 'Transaksi' },
+  { href: '/dashboard/analitik',  icon: '📈', label: 'Analitik' },
+  { href: '/dashboard/upload',    icon: '📤', label: 'Import Laporan' },
+  { href: '/dashboard/profil',    icon: '⚙️', label: 'Pengaturan' },
 ]
 
-const KURIR_COLORS: Record<string, string> = {
-  LION: '#f97316', JNE: '#ef4444', JNT: '#22c55e', WAHANA: '#3b82f6',
-}
+type KurirAktif = { kode: string; nama: string; warna: string }
 
-export default function Sidebar({ user, profile }: { user: any; profile: any }) {
+export default function Sidebar({
+  user, profile, kurirAktif,
+}: {
+  user: any
+  profile: any
+  kurirAktif: KurirAktif[]
+}) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -65,16 +71,22 @@ export default function Sidebar({ user, profile }: { user: any; profile: any }) 
           )
         })}
 
-        {/* Kurir badges */}
-        <div style={{ marginTop: 24 }}>
-          <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '1px', padding: '0 8px', marginBottom: 10 }}>Kurir Aktif</div>
-          {Object.entries(KURIR_COLORS).map(([kode, warna]) => (
-            <div key={kode} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', marginBottom: 2 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: warna }} />
-              <span style={{ fontSize: 13, color: '#64748b' }}>{kode}</span>
+        {/* ✅ Kurir Aktif dari database */}
+        {kurirAktif.length > 0 && (
+          <div style={{ marginTop: 24 }}>
+            <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '1px', padding: '0 8px', marginBottom: 10 }}>
+              Kurir Aktif
             </div>
-          ))}
-        </div>
+            {kurirAktif.map(k => (
+              <div key={k.kode} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', marginBottom: 2 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: k.warna || '#64748b', flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {k.nama}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </nav>
 
       {/* User */}
