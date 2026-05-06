@@ -23,12 +23,12 @@ const DEFAULT_EKSPEDISI = [
 
 const LOGS_PER_PAGE = 5
 const EKS_PER_PAGE = 4
+const JNE_KODE = 'JNE'
 
 export default function UploadClient({ logs }: { logs: any[] }) {
   const [ekspedisiList, setEkspedisiList] = useState<Ekspedisi[]>([])
   const [loadingEkspedisi, setLoadingEkspedisi] = useState(true)
 
-  // Upload state
   const [file, setFile] = useState<File | null>(null)
   const [kurirId, setKurirId] = useState('')
   const [periode, setPeriode] = useState('')
@@ -37,11 +37,9 @@ export default function UploadClient({ logs }: { logs: any[] }) {
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Pagination
   const [logPage, setLogPage] = useState(1)
   const [eksPage, setEksPage] = useState(1)
 
-  // CRUD state
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<Ekspedisi | null>(null)
   const [form, setForm] = useState({
@@ -51,6 +49,13 @@ export default function UploadClient({ logs }: { logs: any[] }) {
   const [formError, setFormError] = useState('')
 
   const router = useRouter()
+
+  // ✅ Computed JNE detection
+  const selectedEkspedisi = ekspedisiList.find(e => e.id === kurirId)
+  const isJNE = selectedEkspedisi?.kode === JNE_KODE
+  const acceptFile = isJNE ? '.pdf' : '.xlsx,.xls'
+  const fileLabel = isJNE ? 'File PDF' : 'File XLSX'
+  const apiEndpoint = isJNE ? '/api/upload-jne' : '/api/upload'
 
   async function fetchEkspedisi() {
     setLoadingEkspedisi(true)
@@ -66,6 +71,14 @@ export default function UploadClient({ logs }: { logs: any[] }) {
   }
 
   useEffect(() => { fetchEkspedisi() }, [])
+
+  // Reset file saat ekspedisi berubah (agar tidak salah format)
+  useEffect(() => {
+    setFile(null)
+    setResult(null)
+    setError('')
+    if (fileRef.current) fileRef.current.value = ''
+  }, [kurirId])
 
   function openAdd() {
     setEditTarget(null)
@@ -113,13 +126,23 @@ export default function UploadClient({ logs }: { logs: any[] }) {
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault()
     if (!file || !kurirId) { setError('Lengkapi semua field'); return }
+
+    // ✅ Validasi format file sesuai ekspedisi
+    if (isJNE && !file.name.toLowerCase().endsWith('.pdf')) {
+      setError('JNE hanya menerima file PDF (.pdf)'); return
+    }
+    if (!isJNE && !file.name.match(/\.(xlsx|xls)$/i)) {
+      setError('Format file harus .xlsx atau .xls'); return
+    }
+
     setLoading(true); setError(''); setResult(null)
     const fd = new FormData()
     fd.append('file', file)
     fd.append('kurir_id', kurirId)
     fd.append('periode', periode)
+
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const res = await fetch(apiEndpoint, { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Upload gagal'); return }
       setResult(data); setFile(null)
@@ -136,12 +159,9 @@ export default function UploadClient({ logs }: { logs: any[] }) {
     boxSizing: 'border-box', outline: 'none',
   }
   const lbl: React.CSSProperties = { fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 5 }
-  const selectedEkspedisi = ekspedisiList.find(e => e.id === kurirId)
 
-  // Pagination helpers
   const totalLogPages = Math.ceil(logs.length / LOGS_PER_PAGE)
   const pagedLogs = logs.slice((logPage - 1) * LOGS_PER_PAGE, logPage * LOGS_PER_PAGE)
-
   const totalEksPages = Math.ceil(ekspedisiList.length / EKS_PER_PAGE)
   const pagedEks = ekspedisiList.slice((eksPage - 1) * EKS_PER_PAGE, eksPage * EKS_PER_PAGE)
 
@@ -173,14 +193,30 @@ export default function UploadClient({ logs }: { logs: any[] }) {
     <div style={{ padding: 28 }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800 }}>Import Laporan</h1>
-        <p style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>Upload file XLSX laporan bulanan dari masing-masing ekspedisi</p>
+        <p style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>
+          Upload file laporan bulanan dari masing-masing ekspedisi
+        </p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: 24, alignItems: 'start' }}>
 
-        {/* ── Kolom kiri: Upload saja ── */}
+        {/* ── Kolom kiri: Upload ── */}
         <div className="card" style={{ padding: 24 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 20 }}>📤 Upload File XLSX</div>
+          {/* ✅ Header dinamis sesuai ekspedisi */}
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 20 }}>
+            {isJNE ? '📋 Upload Packing List JNE (PDF)' : '📤 Upload File XLSX'}
+          </div>
+
+          {/* ✅ Info mode JNE */}
+          {isJNE && (
+            <div style={{
+              background: '#ef444415', border: '1px solid #ef444430', borderRadius: 8,
+              padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#ef4444',
+            }}>
+              📋 Mode JNE — Upload file <b>Rekapitulasi Packing List Agen</b> dalam format PDF
+            </div>
+          )}
+
           <form onSubmit={handleUpload} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <label style={lbl}>Ekspedisi *</label>
@@ -209,32 +245,52 @@ export default function UploadClient({ logs }: { logs: any[] }) {
 
             <div>
               <label style={lbl}>Periode (Bulan)</label>
-              <input type="month" className="input-base" value={periode} onChange={e => setPeriode(e.target.value)} />
+              <input
+                type="month"
+                className="input-base"
+                value={periode}
+                onChange={e => setPeriode(e.target.value)}
+                style={{ colorScheme: 'dark' }}
+              />
+              {isJNE && (
+                <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>
+                  Opsional — periode akan dideteksi otomatis dari PDF
+                </div>
+              )}
             </div>
 
+            {/* ✅ File drop zone dinamis */}
             <div>
-              <label style={lbl}>File XLSX *</label>
+              <label style={lbl}>{fileLabel} *</label>
               <div onClick={() => fileRef.current?.click()} style={{
-                border: `2px dashed ${file ? '#f97316' : '#1e2433'}`,
+                border: `2px dashed ${file ? (isJNE ? '#ef4444' : '#f97316') : '#1e2433'}`,
                 borderRadius: 10, padding: '20px 16px', textAlign: 'center', cursor: 'pointer',
-                background: file ? '#f9731608' : 'transparent',
+                background: file ? (isJNE ? '#ef444408' : '#f9731608') : 'transparent',
+                transition: 'all 0.2s',
               }}>
                 {file ? (
                   <div>
-                    <div style={{ fontSize: 20, marginBottom: 6 }}>📄</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#f97316' }}>{file.name}</div>
+                    <div style={{ fontSize: 20, marginBottom: 6 }}>{isJNE ? '📋' : '📄'}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: isJNE ? '#ef4444' : '#f97316' }}>{file.name}</div>
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{(file.size / 1024).toFixed(1)} KB</div>
                   </div>
                 ) : (
                   <div>
-                    <div style={{ fontSize: 24, marginBottom: 8 }}>📂</div>
+                    <div style={{ fontSize: 24, marginBottom: 8 }}>{isJNE ? '📋' : '📂'}</div>
                     <div style={{ fontSize: 13, color: '#64748b' }}>Klik untuk pilih file</div>
-                    <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>Format: .xlsx, .xls</div>
+                    <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>
+                      {isJNE ? 'Format: .pdf (Rekapitulasi Packing List Agen)' : 'Format: .xlsx, .xls'}
+                    </div>
                   </div>
                 )}
               </div>
-              <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }}
-                onChange={e => setFile(e.target.files?.[0] || null)} />
+              <input
+                ref={fileRef}
+                type="file"
+                accept={acceptFile}
+                style={{ display: 'none' }}
+                onChange={e => setFile(e.target.files?.[0] || null)}
+              />
             </div>
 
             {error && (
@@ -242,39 +298,47 @@ export default function UploadClient({ logs }: { logs: any[] }) {
                 ⚠️ {error}
               </div>
             )}
+
+            {/* ✅ Result box dinamis */}
             {result && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {/* Sukses */}
                 <div style={{ background: '#22c55e20', border: '1px solid #22c55e40', borderRadius: 8, padding: '12px 14px', fontSize: 13 }}>
                   <div style={{ color: '#22c55e', fontWeight: 700, marginBottom: 4 }}>✅ Import Berhasil!</div>
                   <div style={{ color: '#94a3b8' }}>
-                    Total: <b>{result.totalRows}</b> · Sukses: <b style={{ color: '#22c55e' }}>{result.successRows}</b>
+                    {isJNE ? 'Packing List' : 'Total'}: <b>{result.totalRows}</b> · Sukses: <b style={{ color: '#22c55e' }}>{result.successRows}</b>
                     {result.errorRows > 0 && <> · Error: <b style={{ color: '#f59e0b' }}>{result.errorRows}</b></>}
                   </div>
+                  {/* ✅ Periode terdeteksi otomatis dari PDF JNE */}
+                  {isJNE && result.periodeDetected && (
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                      📅 Periode terdeteksi: <b style={{ color: '#f97316' }}>{result.periodeDetected}</b>
+                    </div>
+                  )}
                 </div>
 
-                {/* ✅ Notifikasi duplikat */}
                 {result.duplikatCount > 0 && (
                   <div style={{ background: '#f59e0b15', border: '1px solid #f59e0b40', borderRadius: 8, padding: '12px 14px', fontSize: 13 }}>
                     <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: 8 }}>
-                      ⚠️ {result.duplikatCount} STT duplikat ditemukan — data diperbarui
+                      ⚠️ {result.duplikatCount} {isJNE ? 'PL' : 'STT'} duplikat ditemukan — data diperbarui
                     </div>
                     <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
-                      STT berikut sudah ada di database dan telah diperbarui dengan data terbaru:
+                      {isJNE
+                        ? 'Nomor Packing List berikut sudah ada dan telah diperbarui:'
+                        : 'STT berikut sudah ada di database dan telah diperbarui:'}
                     </div>
                     <div style={{ maxHeight: 120, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {result.duplikat.slice(0, 20).map((d: { stt: string; periode: string }) => (
-                        <div key={d.stt} style={{
+                      {result.duplikat.slice(0, 20).map((d: any) => (
+                        <div key={d.stt || d.pl} style={{
                           display: 'flex', justifyContent: 'space-between',
                           background: '#0d111c', borderRadius: 6, padding: '5px 10px',
                         }}>
-                          <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#94a3b8' }}>{d.stt}</span>
+                          <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#94a3b8' }}>{d.stt || d.pl}</span>
                           <span style={{ fontSize: 11, color: '#f59e0b' }}>periode {d.periode}</span>
                         </div>
                       ))}
                       {result.duplikat.length > 20 && (
                         <div style={{ fontSize: 11, color: '#475569', textAlign: 'center', paddingTop: 4 }}>
-                          ...dan {result.duplikat.length - 20} STT lainnya
+                          ...dan {result.duplikat.length - 20} lainnya
                         </div>
                       )}
                     </div>
@@ -284,7 +348,7 @@ export default function UploadClient({ logs }: { logs: any[] }) {
             )}
 
             <button type="submit" className="btn-primary" disabled={loading || !file || !kurirId}>
-              {loading ? '⏳ Mengimport...' : '📤 Import Sekarang'}
+              {loading ? '⏳ Mengimport...' : isJNE ? '📋 Import Packing List' : '📤 Import Sekarang'}
             </button>
           </form>
         </div>
@@ -310,6 +374,7 @@ export default function UploadClient({ logs }: { logs: any[] }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {pagedLogs.map((log: any) => {
                     const warna = ekspedisiList.find(e => e.kode === log.kurir?.kode)?.warna || '#64748b'
+                    const logIsJNE = log.kurir?.kode === JNE_KODE
                     return (
                       <div key={log.id} style={{ background: '#0d111c', borderRadius: 10, padding: '12px 14px', border: '1px solid #1e2433' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
@@ -319,6 +384,12 @@ export default function UploadClient({ logs }: { logs: any[] }) {
                                 background: `${warna}25`, color: warna, border: `1px solid ${warna}40`,
                                 padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700,
                               }}>{log.kurir?.kode || '—'}</span>
+                              {/* ✅ Badge tipe file */}
+                              <span style={{
+                                background: logIsJNE ? '#ef444420' : '#1e2433',
+                                color: logIsJNE ? '#ef4444' : '#475569',
+                                padding: '1px 6px', borderRadius: 4, fontSize: 10,
+                              }}>{logIsJNE ? 'PDF' : 'XLSX'}</span>
                               <span style={{ fontSize: 13, fontWeight: 600 }}>{log.filename}</span>
                             </div>
                             <div style={{ fontSize: 11, color: '#64748b' }}>
@@ -379,12 +450,14 @@ export default function UploadClient({ logs }: { logs: any[] }) {
                         <span style={{
                           background: `${k.warna || '#64748b'}25`, color: k.warna || '#64748b',
                           border: `1px solid ${k.warna || '#64748b'}50`,
-                          padding: '2px 8px', borderRadius: 5, fontSize: 11, fontWeight: 700,
-                          flexShrink: 0,
+                          padding: '2px 8px', borderRadius: 5, fontSize: 11, fontWeight: 700, flexShrink: 0,
                         }}>{k.kode}</span>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.nama}</div>
-                          {k.telepon && <div style={{ fontSize: 11, color: '#475569' }}>{k.telepon}</div>}
+                          {/* ✅ Badge format file per ekspedisi */}
+                          <div style={{ fontSize: 10, color: k.kode === JNE_KODE ? '#ef4444' : '#475569', marginTop: 1 }}>
+                            {k.kode === JNE_KODE ? '📋 PDF' : '📊 XLSX'}
+                          </div>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 4, flexShrink: 0, marginLeft: 6 }}>
@@ -407,7 +480,7 @@ export default function UploadClient({ logs }: { logs: any[] }) {
         </div>
       </div>
 
-      {/* ── Modal ── */}
+      {/* ── Modal Tambah/Edit Ekspedisi ── */}
       {showForm && (
         <>
           <div onClick={() => setShowForm(false)} style={{

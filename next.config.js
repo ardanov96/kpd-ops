@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['xlsx'],
+  serverExternalPackages: ['xlsx', 'pdf-parse'], 
 }
 
 module.exports = nextConfig
