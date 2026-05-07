@@ -23,7 +23,7 @@ export default async function Sidebar({
 }) {
   const pathname = usePathname()
   const router = useRouter()
-  const supabase = await createClient()
+  const supabase = createClient()
 
   async function handleLogout() {
     await supabase.auth.signOut()

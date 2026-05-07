@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 export default async function ProfilClient({ user, profile }: { user: any; profile: any }) {
-  const supabase = await createClient()
+  const supabase = createClient()
   const router = useRouter()
 
   const [nama, setNama] = useState(profile?.nama || '')
