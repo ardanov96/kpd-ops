@@ -14,7 +14,7 @@ const NAV = [
 
 type KurirAktif = { kode: string; nama: string; warna: string }
 
-export default async function Sidebar({
+export default function Sidebar({
   user, profile, kurirAktif,
 }: {
   user: any
