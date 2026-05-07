@@ -14,7 +14,7 @@ const NAV = [
 
 type KurirAktif = { kode: string; nama: string; warna: string }
 
-export default function Sidebar({
+export default async function Sidebar({
   user, profile, kurirAktif,
 }: {
   user: any
@@ -23,7 +23,7 @@ export default function Sidebar({
 }) {
   const pathname = usePathname()
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   async function handleLogout() {
     await supabase.auth.signOut()

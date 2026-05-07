@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
-export default function ProfilClient({ user, profile }: { user: any; profile: any }) {
-  const supabase = createClient()
+export default async function ProfilClient({ user, profile }: { user: any; profile: any }) {
+  const supabase = await createClient()
   const router = useRouter()
 
   const [nama, setNama] = useState(profile?.nama || '')

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { searchParams } = new URL(req.url)
   const periode = searchParams.get('periode')
 
