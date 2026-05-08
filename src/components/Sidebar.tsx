@@ -8,6 +8,7 @@ const NAV = [
   { href: '/dashboard',           icon: '📊', label: 'Ringkasan' },
   { href: '/dashboard/transaksi', icon: '📦', label: 'Transaksi' },
   { href: '/dashboard/analitik',  icon: '📈', label: 'Analitik' },
+  { href: '/dashboard/ongkir',    icon: '🔍', label: 'Cek Ongkir' }, 
   { href: '/dashboard/upload',    icon: '📤', label: 'Import Laporan' },
   { href: '/dashboard/profil',    icon: '⚙️', label: 'Pengaturan' },
 ]
