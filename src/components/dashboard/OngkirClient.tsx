@@ -24,6 +24,13 @@ type Village = {
   province: string
 }
 
+type District = {
+  district_code: string
+  district: string
+  city: string
+  province: string
+}
+
 type CourierRate = {
   courier_code: string
   courier_name: string
@@ -43,15 +50,20 @@ function VillageSearch({
 }: {
   label: string
   value: Village | null
-  onChange: (v: Village) => void
+  onChange: (v: Village | null) => void
   placeholder: string
 }) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<Village[]>([])
+  const [districtResults, setDistrictResults] = useState<District[]>([])
+  const [villageResults, setVillageResults] = useState<Village[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
+  const [highlight, setHighlight] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
   const timer = useRef<NodeJS.Timeout>()
+  const abortRef = useRef<AbortController>()
+  const districtCache = useRef<Map<string, District[]>>(new Map())
+  const villageCache = useRef<Map<string, Village[]>>(new Map())
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -61,75 +73,177 @@ function VillageSearch({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  const list: (District | Village)[] = villageResults ?? districtResults
+
   function onInput(q: string) {
     setQuery(q)
+    setVillageResults(null)
+    setHighlight(0)
     clearTimeout(timer.current)
-    if (q.length < 3) { setResults([]); return }
+    abortRef.current?.abort()
+    if (q.length < 3) { setDistrictResults([]); return }
+
+    const cached = districtCache.current.get(q.toLowerCase())
+    if (cached) { setDistrictResults(cached); setOpen(true); return }
+
     timer.current = setTimeout(async () => {
+      const controller = new AbortController()
+      abortRef.current = controller
       setLoading(true)
       try {
-        const res = await fetch(`/api/ongkir/villages?q=${encodeURIComponent(q)}`)
+        const res = await fetch(`/api/ongkir/villages?q=${encodeURIComponent(q)}`, { signal: controller.signal })
         const data = await res.json()
-        setResults(Array.isArray(data) ? data : [])
+        const list = Array.isArray(data) ? data : []
+        districtCache.current.set(q.toLowerCase(), list)
+        setDistrictResults(list)
+        setHighlight(0)
         setOpen(true)
-      } catch { setResults([]) }
+      } catch (err) { if ((err as Error).name !== 'AbortError') setDistrictResults([]) }
       finally { setLoading(false) }
-    }, 400)
+    }, 200)
   }
 
-  function select(v: Village) {
+  async function selectDistrict(d: District) {
+    setHighlight(0)
+    const cached = villageCache.current.get(d.district_code)
+    if (cached) { setVillageResults(cached); return }
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/ongkir/villages?district_code=${d.district_code}`)
+      const data = await res.json()
+      const list = Array.isArray(data) ? data : []
+      villageCache.current.set(d.district_code, list)
+      setVillageResults(list)
+    } catch { setVillageResults([]) }
+    finally { setLoading(false) }
+  }
+
+  function selectVillage(v: Village) {
     onChange(v)
     setQuery(`${v.village}, ${v.district}, ${v.city}`)
     setOpen(false)
-    setResults([])
+    setDistrictResults([])
+    setVillageResults(null)
+  }
+
+  function selectItem(item: District | Village) {
+    if (villageResults) selectVillage(item as Village)
+    else selectDistrict(item as District)
+  }
+
+  function clear() {
+    onChange(null)
+    setQuery('')
+    setDistrictResults([])
+    setVillageResults(null)
+    setOpen(false)
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (!open || list.length === 0) return
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight(h => Math.min(h + 1, list.length - 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight(h => Math.max(h - 1, 0)) }
+    else if (e.key === 'Enter') { e.preventDefault(); selectItem(list[highlight]) }
+    else if (e.key === 'Escape') { setOpen(false) }
   }
 
   const inp: React.CSSProperties = {
     width: '100%', background: '#0d111c', border: '1px solid #1e2433',
-    borderRadius: 8, padding: '10px 14px', color: '#f1f5f9', fontSize: 13,
+    borderRadius: 8, padding: '10px 36px 10px 14px', color: '#f1f5f9', fontSize: 13,
     boxSizing: 'border-box', outline: 'none',
   }
+
+  const showDropdown = open && list.length > 0
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>{label}</label>
-      <input
-        style={inp}
-        value={query}
-        onChange={e => onInput(e.target.value)}
-        onFocus={() => results.length > 0 && setOpen(true)}
-        placeholder={placeholder}
-        autoComplete="off"
-      />
-      {loading && (
-        <div style={{ position: 'absolute', right: 12, top: 38, fontSize: 11, color: '#475569' }}>Mencari...</div>
-      )}
+      <div style={{ position: 'relative' }}>
+        <input
+          style={inp}
+          value={query}
+          onChange={e => onInput(e.target.value)}
+          onKeyDown={onKeyDown}
+          onFocus={() => list.length > 0 && setOpen(true)}
+          placeholder={placeholder}
+          autoComplete="off"
+        />
+        {loading && (
+          <span style={{
+            position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+            width: 13, height: 13, border: '2px solid #2d3748', borderTopColor: '#f97316',
+            borderRadius: '50%', animation: 'spin 0.6s linear infinite',
+          }} />
+        )}
+        {!loading && value && query && (
+          <span
+            onClick={clear}
+            title="Hapus"
+            style={{
+              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+              cursor: 'pointer', color: '#64748b', fontSize: 15, lineHeight: 1, padding: 4,
+            }}
+          >×</span>
+        )}
+      </div>
+      <style>{'@keyframes spin { to { transform: translateY(-50%) rotate(360deg) } }'}</style>
       {value && query && (
         <div style={{ fontSize: 11, color: '#22c55e', marginTop: 4 }}>
           ✓ {value.village}, {value.district}, {value.city} ({value.village_code})
         </div>
       )}
-      {open && results.length > 0 && (
+      {showDropdown && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
           background: '#111827', border: '1px solid #1e2433', borderRadius: 8,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)', maxHeight: 240, overflowY: 'auto',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)', maxHeight: 260, overflowY: 'auto',
           marginTop: 4,
         }}>
-          {results.map(v => (
+          {villageResults && (
             <div
-              key={v.village_code}
-              onClick={() => select(v)}
-              style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #1e2433' }}
+              onClick={() => setVillageResults(null)}
+              style={{ padding: '8px 14px', cursor: 'pointer', fontSize: 12, color: '#64748b', borderBottom: '1px solid #1e2433' }}
               onMouseEnter={e => (e.currentTarget.style.background = '#1e2433')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              <div style={{ color: '#f1f5f9', fontWeight: 600 }}>{v.village}</div>
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                {v.district} · {v.city} · {v.province}
-              </div>
+              ← Ganti kecamatan
             </div>
-          ))}
+          )}
+          {villageResults ? (
+            villageResults.map((v, i) => (
+              <div
+                key={v.village_code}
+                onClick={() => selectVillage(v)}
+                onMouseEnter={() => setHighlight(i)}
+                style={{
+                  padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #1e2433',
+                  background: highlight === i ? '#1e2433' : 'transparent',
+                }}
+              >
+                <div style={{ color: '#f1f5f9', fontWeight: 600 }}>{v.village}</div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  {v.district} · {v.city} · {v.province}
+                </div>
+              </div>
+            ))
+          ) : (
+            districtResults.map((d, i) => (
+              <div
+                key={d.district_code}
+                onClick={() => selectDistrict(d)}
+                onMouseEnter={() => setHighlight(i)}
+                style={{
+                  padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #1e2433',
+                  background: highlight === i ? '#1e2433' : 'transparent',
+                }}
+              >
+                <div style={{ color: '#f1f5f9', fontWeight: 600 }}>{d.district}</div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  {d.city} · {d.province} · pilih untuk lihat daftar kelurahan
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>
@@ -227,7 +341,12 @@ export default function OngkirClient() {
           <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 20 }}>🔍 Parameter Pengiriman</div>
           <form onSubmit={cekOngkir} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-            <VillageSearch label="Kelurahan Asal *" value={origin} onChange={setOrigin} placeholder="Ketik nama kelurahan asal..." />
+            <VillageSearch
+              label="Kecamatan/Kota Asal *"
+              value={origin}
+              onChange={setOrigin}
+              placeholder="Ketik nama kecamatan atau kota asal..."
+            />
 
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <button type="button"
@@ -237,7 +356,12 @@ export default function OngkirClient() {
               </button>
             </div>
 
-            <VillageSearch label="Kelurahan Tujuan *" value={destination} onChange={setDestination} placeholder="Ketik nama kelurahan tujuan..." />
+            <VillageSearch
+              label="Kecamatan/Kota Tujuan *"
+              value={destination}
+              onChange={setDestination}
+              placeholder="Ketik nama kecamatan atau kota tujuan..."
+            />
 
             {/* ✅ Berat aktual */}
             <div>
