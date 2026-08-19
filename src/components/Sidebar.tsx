@@ -5,10 +5,11 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV = [
-  { href: '/dashboard/harian',                icon: '�', label: 'Harian' },
-  { href: '/dashboard',                       icon: '�', label: 'Ringkasan' },
+  { href: '/dashboard/harian',                icon: '📅', label: 'Harian' },
+  { href: '/dashboard',                       icon: '📊', label: 'Ringkasan' },
   { href: '/dashboard/transaksi',             icon: '📦', label: 'Transaksi' },
   { href: '/dashboard/analitik',              icon: '📈', label: 'Analitik' },
+  { href: '/dashboard/akunting',              icon: '💰', label: 'Akunting' },
   { href: '/dashboard/ongkir',                icon: '🔍', label: 'Cek Ongkir' },
   { href: '/dashboard/upload',                icon: '📤', label: 'Import Laporan' },
   { href: '/dashboard/inventaris',            icon: '📦', label: 'Inventaris', alertKey: 'inventaris' },

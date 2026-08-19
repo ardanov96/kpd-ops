@@ -17,11 +17,12 @@ Folder ini berisi semua dokumen singkat (brief) yang terkait dengan **sprint pla
 | `000-README.md` | Dokumen ini (index & konvensi) | ✅ |
 | `000-glossary.md` | Istilah teknis & akunting yang dipakai | ✅ |
 | `001-sprint-modul-inventaris.md` | Sprint 1 — Modul Inventaris (task list) | ✅ |
-| `002-sprint-modul-akunting.md` | Sprint 2 — Modul Akunting | ✅ |
+| `002-sprint-modul-akunting.md` | Sprint 2 — Modul Akunting (task list) | ✅ |
 | `003-sprint-modul-pajak.md` | Sprint 3 — Modul Pelaporan Pajak | ✅ |
 | `004-sprint-storage-recurring.md` | Sprint 4 — Storage + Recurring Transaction | ✅ |
 | `005-sprint-export-pdf-xlsx.md` | Sprint 5 — Export PDF/XLSX & Polish | ✅ |
-| `MODUL-INVENTARIS.md` | Dokumentasi fitur Modul Inventaris (cara pakai, API, alur kerja) | ✅ |
+| `MODUL-INVENTARIS.md` | Dokumentasi fitur Modul Inventaris | ✅ |
+| `MODUL-AKUNTING.md` | Dokumentasi fitur Modul Akunting | ✅ |
 | `010-spec-schema.md` | Schema SQL final (gabungan semua migration) | ✅ |
 | `020-spec-workflow.md` | Workflow & otomasi tiap modul | ✅ |
 | `030-decision-log.md` | Log keputusan & alasan teknis | ✅ |
@@ -31,7 +32,7 @@ Folder ini berisi semua dokumen singkat (brief) yang terkait dengan **sprint pla
 ## 🔗 Cara Pakai Folder Ini
 
 1. **Mulai sprint baru** → buka file sprint yang relevan (misal `001-sprint-modul-inventaris.md`)
-2. **Paham fitur yang sudah jadi** → buka `MODUL-...md` (misal `MODUL-INVENTARIS.md` setelah Sprint 1 selesai)
+2. **Paham fitur yang sudah jadi** → buka `MODUL-...md` (misal `MODUL-INVENTARIS.md` atau `MODUL-AKUNTING.md`)
 3. **Cek referensi schema** → buka `010-spec-schema.md`
 4. **Paham kenapa keputusan X diambil** → buka `030-decision-log.md`
 

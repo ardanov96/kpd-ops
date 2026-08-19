@@ -184,3 +184,117 @@ export interface OpnameItem {
   // joined
   barang?: Barang
 }
+
+// ============================================================
+// MODUL AKUNTING (Sprint 2)
+// ============================================================
+
+export type TipeAkun = 'INCOME' | 'EXPENSE' | 'ASSET' | 'LIABILITY' | 'EQUITY'
+export type TipeTransaksiKeuangan = 'MASUK' | 'KELUAR' | 'TRANSFER'
+export type SumberTransaksi = 'MANUAL' | 'INVENTARIS' | 'KURIR' | 'RECURRING' | 'CLOSING' | 'PRIVE'
+export type MetodeBayar = 'CASH' | 'BANK' | 'EWALLET'
+
+export interface KategoriAkun {
+  id: string
+  outlet_id?: string | null
+  kode: string
+  nama: string
+  tipe: TipeAkun
+  parent_id?: string | null
+  is_system: boolean
+  urutan: number
+  created_at: string
+}
+
+export interface TransaksiKeuangan {
+  id: string
+  outlet_id: string
+  tanggal: string
+  tipe: TipeTransaksiKeuangan
+  kategori_id: string
+  sumber: SumberTransaksi
+  ref_id?: string | null
+  nominal: number
+  metode?: MetodeBayar | null
+  keterangan?: string | null
+  lampiran_url?: string | null
+  created_by?: string | null
+  created_at: string
+  // joined
+  kategori?: KategoriAkun
+}
+
+// View: v_laba_rugi
+export interface LabaRugi {
+  outlet_id: string
+  periode: string
+  total_income: number
+  total_expense: number
+  laba_kotor: number
+}
+
+// View: v_cashflow
+export interface Cashflow {
+  outlet_id: string
+  periode: string
+  metode: MetodeBayar
+  cashflow: number
+}
+
+// View: v_keuangan_per_kategori
+export interface KeuanganPerKategori {
+  outlet_id: string
+  periode: string
+  kategori_id: string
+  kategori_kode: string
+  kategori_nama: string
+  kategori_tipe: TipeAkun
+  nominal_income: number
+  nominal_expense: number
+  jumlah_transaksi: number
+}
+
+// View: v_neraca
+export interface Neraca {
+  outlet_id: string
+  outlet_kode: string
+  outlet_nama: string
+  total_aset_kas: number
+  total_aset_lain: number
+  total_aset: number
+  total_liability: number
+  total_modal_pemilik: number
+  total_laba_ditahan: number
+  total_equity: number
+  selisih: number
+}
+
+export interface PeriodeClosing {
+  id: string
+  outlet_id: string
+  periode: string
+  total_income: number
+  total_expense: number
+  laba: number
+  is_locked: boolean
+  closed_at?: string | null
+  closed_by?: string | null
+  catatan?: string | null
+  created_at: string
+}
+
+export interface RecurringTransaction {
+  id: string
+  outlet_id: string
+  kategori_id: string
+  nama_template: string
+  nominal: number
+  metode?: MetodeBayar | null
+  tanggal_setiap_bulan: number
+  tipe: TipeTransaksiKeuangan
+  aktif: boolean
+  last_run?: string | null
+  created_at: string
+  // joined
+  kategori?: KategoriAkun
+}
