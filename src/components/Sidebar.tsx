@@ -5,22 +5,26 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV = [
-  { href: '/dashboard',           icon: '📊', label: 'Ringkasan' },
-  { href: '/dashboard/transaksi', icon: '📦', label: 'Transaksi' },
-  { href: '/dashboard/analitik',  icon: '📈', label: 'Analitik' },
-  { href: '/dashboard/ongkir',    icon: '🔍', label: 'Cek Ongkir' }, 
-  { href: '/dashboard/upload',    icon: '📤', label: 'Import Laporan' },
-  { href: '/dashboard/profil',    icon: '⚙️', label: 'Pengaturan' },
+  { href: '/dashboard/harian',                icon: '�', label: 'Harian' },
+  { href: '/dashboard',                       icon: '�', label: 'Ringkasan' },
+  { href: '/dashboard/transaksi',             icon: '📦', label: 'Transaksi' },
+  { href: '/dashboard/analitik',              icon: '📈', label: 'Analitik' },
+  { href: '/dashboard/ongkir',                icon: '🔍', label: 'Cek Ongkir' },
+  { href: '/dashboard/upload',                icon: '📤', label: 'Import Laporan' },
+  { href: '/dashboard/inventaris',            icon: '📦', label: 'Inventaris', alertKey: 'inventaris' },
+  { href: '/dashboard/profil',                icon: '⚙️', label: 'Pengaturan' },
 ]
 
 type KurirAktif = { kode: string; nama: string; warna: string }
+type AlertCounts = { inventaris?: number }
 
 export default function Sidebar({
-  user, profile, kurirAktif,
+  user, profile, kurirAktif, alertCounts,
 }: {
   user: any
   profile: any
   kurirAktif: KurirAktif[]
+  alertCounts?: AlertCounts
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -50,10 +54,11 @@ export default function Sidebar({
       </div>
 
       {/* Nav */}
-      <nav style={{ padding: '16px 12px', flex: 1 }}>
+      <nav style={{ padding: '16px 12px', flex: 1, overflowY: 'auto' }}>
         <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '1px', padding: '0 8px', marginBottom: 8 }}>Menu</div>
         {NAV.map(item => {
           const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+          const alertCount = item.alertKey && alertCounts ? (alertCounts[item.alertKey as keyof AlertCounts] || 0) : 0
           return (
             <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
               <div style={{
@@ -66,13 +71,23 @@ export default function Sidebar({
                 borderLeft: active ? '2px solid #f97316' : '2px solid transparent',
               }}>
                 <span>{item.icon}</span>
-                <span>{item.label}</span>
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {alertCount > 0 && (
+                  <span style={{
+                    background: '#ef4444', color: '#fff',
+                    fontSize: 10, fontWeight: 700,
+                    padding: '2px 7px', borderRadius: 10,
+                    minWidth: 20, textAlign: 'center',
+                  }}>
+                    ⚠ {alertCount}
+                  </span>
+                )}
               </div>
             </Link>
           )
         })}
 
-        {/* ✅ Kurir Aktif dari database */}
+        {/* Kurir Aktif dari database */}
         {kurirAktif.length > 0 && (
           <div style={{ marginTop: 24 }}>
             <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '1px', padding: '0 8px', marginBottom: 10 }}>

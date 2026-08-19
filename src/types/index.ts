@@ -80,3 +80,107 @@ export interface UploadLog {
   errors?: unknown
   created_at: string
 }
+
+// ============================================================
+// MODUL INVENTARIS (Sprint 1)
+// ============================================================
+
+export type TipeStokMovement = 'IN' | 'OUT' | 'ADJ'
+export type StatusOpname = 'DRAFT' | 'FINAL'
+export type RefTypeStok = 'MANUAL' | 'OPNAME' | 'INVENTARIS_AUTO'
+
+export interface KategoriInventaris {
+  id: string
+  outlet_id?: string | null
+  kode: string
+  nama: string
+  deskripsi?: string | null
+  created_at: string
+}
+
+export interface Barang {
+  id: string
+  outlet_id: string
+  kategori_id: string
+  sku?: string | null
+  nama: string
+  satuan: string
+  stok_min: number
+  harga_beli: number
+  aktif: boolean
+  created_at: string
+  // joined
+  kategori?: KategoriInventaris
+}
+
+export interface StokMovement {
+  id: string
+  outlet_id: string
+  barang_id: string
+  tipe: TipeStokMovement
+  qty: number
+  harga_satuan: number
+  total: number
+  ref_type?: RefTypeStok | null
+  ref_id?: string | null
+  keterangan?: string | null
+  tanggal: string
+  created_by?: string | null
+  created_at: string
+}
+
+// View: v_stok_aktual
+export interface StokAktual {
+  barang_id: string
+  outlet_id: string
+  kategori_id: string
+  sku?: string | null
+  nama: string
+  satuan: string
+  stok_min: number
+  harga_beli: number
+  aktif: boolean
+  stok: number
+  total_nilai_masuk: number
+  is_below_min: boolean
+}
+
+// View: v_kartu_stok
+export interface KartuStok {
+  barang_id: string
+  outlet_id: string
+  tanggal: string
+  tipe: TipeStokMovement
+  qty: number
+  harga_satuan: number
+  total: number
+  keterangan?: string | null
+  ref_type?: RefTypeStok | null
+  ref_id?: string | null
+  created_at: string
+}
+
+export interface Opname {
+  id: string
+  outlet_id: string
+  periode: string  // 'YYYY-MM'
+  tanggal_opname: string
+  status: StatusOpname
+  catatan?: string | null
+  created_by?: string | null
+  finalized_at?: string | null
+  created_at: string
+}
+
+export interface OpnameItem {
+  id: string
+  opname_id: string
+  barang_id: string
+  qty_sistem: number
+  qty_fisik: number
+  selisih?: number | null
+  harga_satuan?: number | null
+  catatan?: string | null
+  // joined
+  barang?: Barang
+}
