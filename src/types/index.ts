@@ -298,3 +298,62 @@ export interface RecurringTransaction {
   // joined
   kategori?: KategoriAkun
 }
+
+// ============================================================
+// MODUL PAJAK (Sprint 3)
+// ============================================================
+
+export type StatusBayarPajak = 'BELUM' | 'LUNAS' | 'BEAS'
+export type JenisPajak = 'PPH_FINAL_05'
+export type FormSPT = '1770S3' | '1770S' | '1771'
+export type MetodePPh = 'FINAL_05'
+
+export interface PajakConfig {
+  outlet_id: string
+  npwp?: string | null
+  nama_wp?: string | null
+  metode_pph: MetodePPh
+  pkp: boolean
+  omzet_tahunan: number
+  form_spt: FormSPT
+  updated_at: string
+}
+
+export interface PajakRekap {
+  id: string
+  outlet_id: string
+  periode: string  // 'YYYY-MM'
+  jenis_pajak: JenisPajak
+  dasar_pengenaan: number
+  tarif: number    // 0.5 (persen)
+  nilai_pajak: number
+  status_bayar: StatusBayarPajak
+  tanggal_bayar?: string | null
+  bukti_url?: string | null
+  catatan?: string | null
+  created_by?: string | null
+  created_at: string
+}
+
+// View: v_spt_tahunan_estimator
+export interface SPTTahunanEstimator {
+  outlet_id: string
+  tahun: string
+  total_omzet: number
+  total_pph_final: number
+  bulan_lunas: number
+  bulan_belum: number
+  total_bulan: number
+}
+
+// View: v_pajak_reminder
+export interface PajakReminder {
+  id: string
+  outlet_id: string
+  periode: string
+  jenis_pajak: JenisPajak
+  nilai_pajak: number
+  status_bayar: StatusBayarPajak
+  tanggal_jatuh_tempo: string
+  sisa_hari: number
+}

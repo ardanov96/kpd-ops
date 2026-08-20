@@ -10,6 +10,7 @@ const NAV = [
   { href: '/dashboard/transaksi',             icon: '📦', label: 'Transaksi' },
   { href: '/dashboard/analitik',              icon: '📈', label: 'Analitik' },
   { href: '/dashboard/akunting',              icon: '💰', label: 'Akunting' },
+  { href: '/dashboard/pajak',                 icon: '🧾', label: 'Pajak', alertKey: 'pajak' },
   { href: '/dashboard/ongkir',                icon: '🔍', label: 'Cek Ongkir' },
   { href: '/dashboard/upload',                icon: '📤', label: 'Import Laporan' },
   { href: '/dashboard/inventaris',            icon: '📦', label: 'Inventaris', alertKey: 'inventaris' },
@@ -17,7 +18,7 @@ const NAV = [
 ]
 
 type KurirAktif = { kode: string; nama: string; warna: string }
-type AlertCounts = { inventaris?: number }
+type AlertCounts = { inventaris?: number; pajak?: number }
 
 export default function Sidebar({
   user, profile, kurirAktif, alertCounts,
