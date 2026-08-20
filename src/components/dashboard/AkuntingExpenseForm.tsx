@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { TipeTransaksiKeuangan, TipeAkun, MetodeBayar, KategoriAkun, TransaksiKeuangan } from '@/types'
+import ViewFileButton from './ViewFileButton'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
@@ -24,6 +25,9 @@ const METODE_LABEL: Record<MetodeBayar, string> = {
   BANK: '🏦 Bank',
   EWALLET: '📱 E-Wallet',
 }
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
+const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf']
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
@@ -55,12 +59,18 @@ export default function AkuntingExpenseForm({
     metode: 'CASH',
     keterangan: '',
   })
+  const [lampiranFile, setLampiranFile] = useState<File | null>(null)
+  const [lampiranPreview, setLampiranPreview] = useState<string>('')
+  const [isDragOver, setIsDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const [uploadBusy, setUploadBusy] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
 
   function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
     setToast({ msg, kind })
-    setTimeout(() => setToast(null), 2500)
+    setTimeout(() => setToast(null), 3500)
   }
 
   // Filter kategori based on tipe
@@ -91,12 +101,69 @@ export default function AkuntingExpenseForm({
     router.push(`/dashboard/akunting/expense?${params.toString()}`)
   }
 
+  // ============================================================
+  // FILE HANDLING
+  // ============================================================
+
+  function handleFileSelect(file: File | null) {
+    if (!file) {
+      setLampiranFile(null)
+      setLampiranPreview('')
+      return
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      showToast(`File terlalu besar (${(file.size / 1024 / 1024).toFixed(2)} MB). Maks 5 MB.`, 'err')
+      return
+    }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      showToast(`Tipe file tidak didukung: ${file.type}. Hanya JPG/PNG/WebP/PDF.`, 'err')
+      return
+    }
+    setLampiranFile(file)
+    // Preview image (untuk PDF tidak ada preview native, tampilkan info saja)
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = () => setLampiranPreview(String(reader.result || ''))
+      reader.readAsDataURL(file)
+    } else {
+      setLampiranPreview('')
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) handleFileSelect(file)
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragOver(true)
+  }
+
+  function handleDragLeave() {
+    setIsDragOver(false)
+  }
+
+  function clearFile() {
+    setLampiranFile(null)
+    setLampiranPreview('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  // ============================================================
+  // SUBMIT (2 langkah: insert transaksi → upload nota → update URL)
+  // ============================================================
+
   async function submit() {
     if (!form.kategori_id) return showToast('Kategori wajib dipilih', 'err')
     if (!form.nominal || form.nominal <= 0) return showToast('Nominal harus > 0', 'err')
     if (!form.tanggal) return showToast('Tanggal wajib diisi', 'err')
     setBusy(true)
+    setUploadProgress(0)
     try {
+      // Step 1: insert transaksi
       const res = await fetch('/api/akunting/transaksi', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -111,14 +178,51 @@ export default function AkuntingExpenseForm({
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Gagal simpan')
-      showToast(`Transaksi ${form.tipe} tersimpan`)
+      if (!res.ok) throw new Error(json.error || 'Gagal simpan transaksi')
+      const transaksiId = json?.id
+      if (!transaksiId) throw new Error('Response API tidak mengandung ID transaksi')
+
+      // Step 2: upload nota (jika ada) — lalu PATCH ke transaksi_keuangan.lampiran_url
+      let uploadedPath: string | null = null
+      if (lampiranFile) {
+        setUploadBusy(true)
+        setUploadProgress(20)
+        const fd = new FormData()
+        fd.append('file', lampiranFile)
+        fd.append('outletId', outlet.id)
+        fd.append('refId', transaksiId)
+        fd.append('subfolder', form.tanggal.slice(0, 7)) // YYYY-MM
+        const upRes = await fetch('/api/storage/upload-nota', {
+          method: 'POST',
+          body: fd,
+        })
+        setUploadProgress(80)
+        const upJson = await upRes.json()
+        if (!upRes.ok) throw new Error(upJson.error || 'Upload nota gagal')
+        uploadedPath = upJson.path
+
+        // Step 3: PATCH URL ke transaksi
+        const patchRes = await fetch(`/api/akunting/transaksi/${transaksiId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lampiran_url: uploadedPath }),
+        })
+        setUploadProgress(100)
+        if (!patchRes.ok) throw new Error('Gagal simpan URL lampiran')
+      }
+
+      showToast(
+        `✅ Transaksi ${form.tipe} tersimpan${uploadedPath ? ' + nota terupload' : ''}`
+      )
       setForm({ ...form, nominal: 0, keterangan: '', kategori_id: '' })
+      clearFile()
       router.refresh()
     } catch (e: any) {
       showToast(e.message || 'Error', 'err')
     } finally {
       setBusy(false)
+      setUploadBusy(false)
+      setUploadProgress(0)
     }
   }
 
@@ -209,6 +313,95 @@ export default function AkuntingExpenseForm({
               placeholder={form.tipe === 'KELUAR' ? 'misal: Bayar WiFi bulan Oktober' : 'misal: Setoran modal'} />
           </Field>
 
+          {/* ============================================================
+              DRAG-DROP UPLOAD NOTA (Sprint 4 Task 4.12)
+              ============================================================ */}
+          <Field label="📎 Lampiran Nota (opsional, maks 5MB)">
+            {!lampiranFile ? (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                style={{
+                  border: `2px dashed ${isDragOver ? '#f97316' : '#1e2433'}`,
+                  borderRadius: 8,
+                  padding: '16px 12px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  background: isDragOver ? '#f9731610' : '#0d111c',
+                  color: '#94a3b8',
+                  fontSize: 12,
+                  transition: 'all 0.15s',
+                }}
+              >
+                <div style={{ fontSize: 20, marginBottom: 4 }}>📄</div>
+                <div style={{ fontWeight: 600 }}>Drag-drop file di sini</div>
+                <div style={{ marginTop: 2 }}>atau klik untuk pilih file</div>
+                <div style={{ fontSize: 10, marginTop: 6, color: '#64748b' }}>
+                  JPG / PNG / WebP / PDF · ≤5 MB
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf"
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+                />
+              </div>
+            ) : (
+              <div style={{
+                background: '#0d111c',
+                border: '1px solid #22c55e40',
+                borderRadius: 8,
+                padding: 10,
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                {lampiranPreview ? (
+                  <img src={lampiranPreview} alt="preview" style={{
+                    width: 48, height: 48, objectFit: 'cover', borderRadius: 6, flexShrink: 0,
+                  }} />
+                ) : (
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 6, background: '#1e2433',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0,
+                  }}>📄</div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 12, fontWeight: 600, color: '#22c55e',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {lampiranFile.name}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#64748b' }}>
+                    {(lampiranFile.size / 1024).toFixed(1)} KB · {lampiranFile.type}
+                  </div>
+                </div>
+                <button type="button" onClick={clearFile}
+                  style={{
+                    background: 'transparent', border: 'none', color: '#ef4444',
+                    fontSize: 18, cursor: 'pointer', padding: 4,
+                  }} title="Hapus">✕</button>
+              </div>
+            )}
+          </Field>
+
+          {/* Upload progress bar */}
+          {uploadBusy && uploadProgress > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+                Uploading... {uploadProgress}%
+              </div>
+              <div style={{ background: '#1e2433', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                <div style={{
+                  background: '#22c55e', height: '100%', width: `${uploadProgress}%`,
+                  transition: 'width 0.3s',
+                }} />
+              </div>
+            </div>
+          )}
+
           <button type="button" onClick={submit} disabled={busy}
             style={{
               width: '100%', background: '#f97316', border: 'none', color: '#fff',
@@ -216,11 +409,11 @@ export default function AkuntingExpenseForm({
               fontSize: 14, fontWeight: 700, marginTop: 8,
               opacity: busy ? 0.6 : 1,
             }}>
-            {busy ? 'Menyimpan...' : '✅ Simpan Transaksi'}
+            {busy ? '⏳ Menyimpan...' : '✅ Simpan Transaksi'}
           </button>
 
           <div style={{ fontSize: 11, color: '#64748b', marginTop: 12, fontStyle: 'italic' }}>
-            ℹ️ Upload nota pembayaran (Sprint 4) akan terpasang setelah Modul Storage selesai.
+            💡 Lampirkan foto nota untuk dokumentasi. Upload tersimpan di bucket <code>nota-expense</code>.
           </div>
         </div>
 
@@ -262,12 +455,13 @@ export default function AkuntingExpenseForm({
                   <th style={th()}>Nominal</th>
                   <th style={th()}>Metode</th>
                   <th style={th()}>Keterangan</th>
+                  <th style={th()}>Lampiran</th>
                   <th style={th()}>Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredList.length === 0 && (
-                  <tr><td colSpan={7} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
+                  <tr><td colSpan={8} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
                     {transaksiList.length === 0 ? 'Belum ada transaksi.' : 'Tidak ada hasil filter.'}
                   </td></tr>
                 )}
@@ -294,6 +488,11 @@ export default function AkuntingExpenseForm({
                     <td style={{ ...td(), color: '#94a3b8' }}>{t.metode || '—'}</td>
                     <td style={{ ...td(), fontSize: 12, color: '#94a3b8', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {t.keterangan || '—'}
+                    </td>
+                    <td style={td()}>
+                      {t.lampiran_url ? (
+                        <ViewFileButton bucket="nota-expense" path={t.lampiran_url} label="📎 Lihat" />
+                      ) : <span style={{ color: '#475569', fontSize: 10 }}>—</span>}
                     </td>
                     <td style={td()}>
                       {t.sumber === 'MANUAL' && (
