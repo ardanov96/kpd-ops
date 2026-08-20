@@ -221,6 +221,109 @@
 
 ---
 
+## 🏛️ Keputusan Sprint 3 — Modul Pajak
+
+### D-018: Auto-generate PPh Final setelah closing
+**Tanggal:** 8 Oktober 2026
+**Konteks:** Setiap closing bulanan harus otomatis insert PPh Final 0,5% ke `pajak_rekap`
+**Keputusan:** Patch `fn_closing_periode` di migration `006_pajak_closing_trigger.sql` agar auto-call `fn_generate_pph_final_rekap`
+**Alasan:**
+- 1 klik closing → semua pajak bulan ini auto-generated
+- Memastikan tidak lupa generate PPh (sebelumnya proses manual terpisah)
+- Idempotent: jika sudah ada, function `on conflict do update` tidak duplicate
+- Lihat detail di workflow 4 di `020-spec-workflow.md`
+
+### D-019: Reminder jatuh tempo PPh Final (7 hari)
+**Tanggal:** 8 Oktober 2026
+**Konteks:** Owner harus bayar PPh Final tgl 15 bulan berikutnya — kalau lupa, kena denda
+**Keputusan:** View `v_pajak_reminder` + badge counter di dashboard utama
+**Alasan:**
+- Tgl jatuh tempo selalu tgl 15 bulan setelahnya (aturan DJP)
+- Badge muncul jika `sisa_hari <= 7` (minggu terakhir)
+- Tampil di sidebar sebagai alert count (seperti alert inventaris)
+- Lihat workflow 1 di `020-spec-workflow.md` (Siklus Bulanan)
+
+---
+
+## 🏛️ Keputusan Sprint 4 — Storage + Recurring
+
+### D-020: Tambah field `lampiran_url` di `transaksi_keuangan`
+**Tanggal:** 8 Oktober 2026
+**Konteks:** Owner perlu simpan foto nota expense untuk dokumentasi
+**Keputusan:** Field `lampiran_url text` (nullable) di `transaksi_keuangan`
+**Alasan:**
+- File disimpan di Supabase Storage bucket `nota-expense`
+- Path disimpan sebagai string (bukan FK ke tabel lain) — fleksibel
+- Nullable = expense manual boleh tanpa lampiran
+- Lihat workflow 2b di `020-spec-workflow.md`
+
+### D-021: Owner-only storage RLS untuk `bukti-pajak`
+**Tanggal:** 8 Oktober 2026
+**Konteks:** Bukti SSP mengandung NPWP + nominal PPh — data paling sensitif
+**Keputusan:** Migration `006_storage_recurring.sql` punya policy `owner_upload_bukti_pajak` + `read_bukti_pajak` (hanya owner, semua authenticated read)
+**Alasan:**
+- Konsisten dengan D-006 (modul pajak owner-only)
+- Bukti SSP tidak boleh dishare ke staff
+- Storage RLS cek `auth.uid() exists in profiles where role='owner'`
+- `nota-expense` lebih longgar: staff bisa read (untuk cek audit)
+
+### D-022: Signed URL expired 1 jam
+**Tanggal:** 8 Oktober 2026
+**Konteks:** Bucket Supabase Storage private — owner butuh lihat file dari UI
+**Keputusan:** Signed URL expire `3600` detik (1 jam)
+**Alasan:**
+- Cukup untuk owner lihat/download file
+- Kalau lebih dari 1 jam, owner refresh page → generate ulang
+- Lebih aman dari URL publik tanpa expired
+- API endpoint `/api/storage/get-signed-url` untuk generate per-request (owner only)
+
+### D-023: 2 bucket terpisah (`nota-expense` + `bukti-pajak`)
+**Tanggal:** 8 Oktober 2026
+**Konteks:** File expense (nota) vs file pajak (SSP) punya sensivitas berbeda
+**Keputusan:** 2 bucket Supabase Storage terpisah dengan RLS berbeda
+**Alasan:**
+- `nota-expense`: foto struk/WiFi — less sensitive, staff boleh read
+- `bukti-pajak`: foto/PDF SSP — NPWP + nominal, owner only
+- Pemisahan memudahkan audit (siapa akses apa)
+- Lihat workflow 2b & 5 di `020-spec-workflow.md`
+
+---
+
+## 🏛️ Keputusan Sprint 5 — Export PDF/XLSX & Polish
+
+### D-024: Library PDF `@react-pdf/renderer` (bukan `puppeteer`)
+**Tanggal:** 8 Oktober 2026
+**Konteks:** Export SPT Tahunan & laporan internal ke PDF
+**Keputusan:** Pakai `@react-pdf/renderer ^4.6.1` (client-side, ~5MB) via `PDFDownloadLink`
+**Alasan:**
+- `puppeteer` ~200MB → Vercel function size limit 50MB (free) → tidak muat
+- `@react-pdf/renderer` render di browser (no server-side)
+- TypeScript type-safe (React component)
+- Untuk export SPT 1-2 halaman, perfoma cukup
+- Future: kalau butuh PDF kompleks (chart, multi-page), migrate ke server-side Puppeteer
+
+### D-025: Helper XLSX generic di `src/lib/export/xlsx.ts`
+**Tanggal:** 8 Oktober 2026
+**Konteks:** Setiap halaman laporan butuh export XLSX — perlu helper reusable
+**Keputusan:** Helper generic `exportToXlsx`/`exportToXlsxBuffer` dengan multi-sheet + currency/percent format
+**Alasan:**
+- DRY: tidak copy-paste XLSX code di setiap halaman
+- Currency format: `"Rp "#,##0` otomatis terapkan ke kolom nominal
+- Bisa dipakai client-side (Blob download) atau server-side (ArrayBuffer di Response)
+- Terintegrasi dengan 4 sheet: Laba-Rugi, Cashflow, Neraca, Kartu Stok
+
+### D-026: Polish UX: `LoadingSkeleton` + `EmptyState` components
+**Tanggal:** 8 Oktober 2026
+**Konteks:** UX perlu lebih informatif dari sekadar spinner + teks "belum ada"
+**Keputusan:** 2 komponen reusable di `src/components/dashboard/`
+**Alasan:**
+- `LoadingSkeleton`: shimmer animation untuk saat data dimuat
+- `EmptyState`: icon + title + description + CTA button untuk list kosong
+- Terpakai di Laba-Rugi, Kartu Stok, Recurring, Rekap Pajak
+- Konsisten across pages
+
+---
+
 ## ❓ Keputusan yang Masih Pending
 
 | # | Keputusan | Status | Action |

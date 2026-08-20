@@ -83,6 +83,46 @@ Tabel update otomatis
 
 ---
 
+## 📋 Workflow 2b: Upload Nota Expense (Sprint 4)
+
+```
+Owner drag-drop file nota ke area lampiran
+   ↓
+Frontend validasi client-side:
+  - Tipe: JPG/PNG/WebP/PDF (max 5MB)
+  - Preview image inline (PDF: icon + nama file)
+   ↓
+Submit → POST /api/akunting/transaksi (insert tanpa lampiran dulu)
+   ↓
+API return { id: transaksi_id }
+   ↓
+Frontend: POST /api/storage/upload-nota
+  (multipart: file, outletId, refId=transaksi_id, subfolder=YYYY-MM)
+   ↓
+API upload ke bucket `nota-expense/{outlet_id}/{YYYY-MM}/{transaksi_id}-{filename}
+   ↓
+Return { path, publicUrl (signed, 1 jam) }
+   ↓
+Frontend: PATCH /api/akunting/transaksi/[id]
+  body: { lampiran_url: path }
+   ↓
+DB update transaksi_keuangan.lampiran_url
+   ↓
+Toast: "✅ Transaksi tersimpan + nota terupload"
+   ↓
+Owner lihat di list dengan badge "📎 ada"
+   ↓
+Klik "📎 Lihat" → fetch signed URL → buka FileViewerModal (lightbox)
+```
+
+**Catatan Sprint 4:**
+- File upload lewat **API route server-side** (bukan client-side) untuk amankan `SUPABASE_SERVICE_ROLE_KEY`
+- Signed URL expired 1 jam — owner harus refresh page untuk lihat lagi
+- Path convention: `nota-expense/{outlet_id}/{YYYY-MM}/{ref_id}-{filename}` untuk avoid collision
+- Lihat `D-020`, `D-022`, `D-023` di `030-decision-log.md`
+
+---
+
 ## 📋 Workflow 3: Stok Keluar Trigger Expense Otomatis
 
 ```
@@ -178,6 +218,42 @@ API:
    ↓
 Toast: "✅ Pembayaran dicatat"
 ```
+
+**Catatan Sprint 4 (Workflow 5b — Upload SSP):**
+- Flow identik dengan 2b tapi pakai bucket `bukti-pajak` (lebih sensitif, hanya owner)
+- Path: `bukti-pajak/{outlet_id}/{YYYY-MM}/{pajak_rekap_id}-{filename}`
+- Signed URL 1 jam untuk preview di FileViewerModal
+- Lihat `D-021`, `D-022` di `030-decision-log.md`
+
+---
+
+## 📋 Workflow 6b: Lihat File Nota / SSP di List (Sprint 4)
+
+```
+Owner di halaman Laba-Rugi / Kartu Stok / Rekap Pajak
+   ↓
+Lihat badge "📎 ada" di kolom Lampiran
+   ↓
+Klik tombol "📎 Lihat"
+   ↓
+Frontend: POST /api/storage/get-signed-url
+  body: { bucket, path, expiry: 3600 }
+   ↓
+API: cek auth owner → generate signed URL (1 jam)
+   ↓
+Return { url: "https://...?token=..." }
+   ↓
+Frontend: buka <FileViewerModal url={signedUrl} />
+   ↓
+Modal render:
+  - Image: <img> max 95vw
+  - PDF: <iframe> 90vw x 85vh
+  - Else: download link
+   ↓
+Owner close modal (Esc / klik backdrop / tombol ✕)
+```
+
+**Lihat `D-022`, `D-026` di `030-decision-log.md`**
 
 ---
 

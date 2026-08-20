@@ -227,10 +227,14 @@ create table if not exists transaksi_keuangan (
   nominal numeric not null,
   metode text check (metode in ('CASH','BANK','EWALLET')),
   keterangan text,
-  lampiran_url text,                           -- path di Supabase Storage
+  lampiran_url text,                           -- Sprint 4: path di Supabase Storage bucket 'nota-expense'
   created_by uuid references profiles(id),
   created_at timestamptz default now()
 );
+-- Sprint 4 note: field `lampiran_url` awalnya tidak ada di spec 010 versi awal.
+-- Ditambahkan di Sprint 4 untuk simpan URL upload nota expense.
+-- Update flow: insert transaksi dulu (return id), lalu upload file ke /api/storage/upload-nota,
+-- lalu PATCH /api/akunting/transaksi/[id] untuk set lampiran_url.
 
 -- Periode closing (lock per bulan)
 create table if not exists periode_closing (
@@ -499,10 +503,45 @@ select
   sum(dasar_pengenaan) as total_omzet,
   sum(nilai_pajak) as total_pph_final,
   count(*) filter (where status_bayar = 'LUNAS') as bulan_lunas,
+  count(*) filter (where status_bayar = 'BELUM') as bulan_belum,  -- Sprint 3 tambahan
   count(*) as total_bulan
 from pajak_rekap
 where jenis_pajak = 'PPH_FINAL_05'
 group by outlet_id, substring(periode, 1, 4);
+
+-- View: Reminder jatuh tempo PPh Final (Sprint 3)
+-- Menampilkan baris pajak_rekap BELUM yang jatuh tempo <= 7 hari
+create or replace view v_pajak_reminder as
+select
+  pr.id,
+  pr.outlet_id,
+  pr.periode,
+  pr.jenis_pajak,
+  pr.nilai_pajak,
+  pr.status_bayar,
+  -- Jatuh tempo = tanggal 15 bulan setelahnya
+  ((substring(pr.periode, 1, 4)::int
+    + case when substring(pr.periode, 6, 2)::int = 12 then 1 else 0 end
+   )::text || '-' ||
+   lpad(
+     case when substring(pr.periode, 6, 2)::int = 12 then 1
+          else substring(pr.periode, 6, 2)::int + 1
+     end::text, 2, '0'
+   ) || '-15')::date as tanggal_jatuh_tempo,
+  -- Sisa hari (negatif = sudah lewat)
+  (((substring(pr.periode, 1, 4)::int
+    + case when substring(pr.periode, 6, 2)::int = 12 then 1 else 0 end
+   )::text || '-' ||
+   lpad(
+     case when substring(pr.periode, 6, 2)::int = 12 then 1
+          else substring(pr.periode, 6, 2)::int + 1
+     end::text, 2, '0'
+   ) || '-15')::date - current_date as sisa_hari
+from pajak_rekap pr
+where pr.status_bayar = 'BELUM'
+  and pr.jenis_pajak = 'PPH_FINAL_05';
+-- Sprint 3 note: view ini dipakai untuk badge reminder di dashboard utama
+-- (alertCount <= 7 hari). Sprint 4: tambah helper function is_owner() di 006_storage_recurring.sql
 
 -- RLS: owner only (data sensitif)
 alter table pajak_config enable row level security;
