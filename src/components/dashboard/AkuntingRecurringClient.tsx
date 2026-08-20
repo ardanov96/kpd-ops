@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { TipeTransaksiKeuangan, MetodeBayar, KategoriAkun, RecurringTransaction } from '@/types'
+import EmptyState from './EmptyState'
 
 type FormState = {
   nama_template: string
@@ -207,8 +208,12 @@ export default function AkuntingRecurringClient({
           </thead>
           <tbody>
             {recurringList.length === 0 && (
-              <tr><td colSpan={9} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
-                Belum ada template. Klik <strong>+ Template Baru</strong> untuk mulai.
+              <tr><td colSpan={9} style={{ padding: 0 }}>
+                <EmptyState
+                  icon="🔁"
+                  title="Belum ada template recurring"
+                  description="Buat template untuk transaksi berulang (WiFi, listrik, sewa, dll) yang auto-generate tiap bulan via Vercel Cron."
+                />
               </td></tr>
             )}
             {recurringList.map((r) => (
