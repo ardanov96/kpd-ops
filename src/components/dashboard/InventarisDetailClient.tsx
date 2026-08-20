@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import * as XLSX from 'xlsx'
+import { exportAndDownloadXlsx, type XlsxSheet } from '@/lib/export/xlsx'
 
 const fmtFull = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
@@ -40,39 +40,63 @@ export default function InventarisDetailClient({
   }, [movements])
 
   function exportXLSX() {
-    const rows = movements.map((m) => ({
-      Tanggal: m.tanggal,
-      Tipe: m.tipe,
-      Qty: Number(m.qty),
-      'Harga Satuan': Number(m.harga_satuan),
-      Total: Number(m.total),
-      'Tipe Ref': m.ref_type || '-',
-      Keterangan: m.keterangan || '-',
-      'Created At': m.created_at,
+    // Sprint 5: pakai helper generic dengan currency format + metadata
+    const movementsRows = movements.map((m) => ({
+      tanggal: m.tanggal,
+      tipe: m.tipe,
+      qty: Number(m.qty),
+      'harga_satuan': Number(m.harga_satuan),
+      total: Number(m.total),
+      ref_type: m.ref_type || '-',
+      keterangan: m.keterangan || '-',
+      created_at: m.created_at,
     }))
-    const ws = XLSX.utils.json_to_sheet(rows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Kartu Stok')
 
-    // Tambah sheet summary
-    const summaryRows = [
-      { Field: 'Nama Barang',  Value: barang.nama },
-      { Field: 'SKU',          Value: barang.sku || '-' },
-      { Field: 'Kategori',     Value: barang.kategori?.nama || '-' },
-      { Field: 'Satuan',       Value: barang.satuan },
-      { Field: 'Stok Minimum', Value: Number(barang.stok_min) },
-      { Field: 'Stok Aktual',  Value: Number(stok?.stok ?? 0) },
-      { Field: 'Total Masuk',  Value: summary.totalIn },
-      { Field: 'Total Keluar', Value: summary.totalOut },
-      { Field: 'Total Adjust', Value: summary.totalAdj },
-      { Field: 'Nilai Masuk',  Value: fmtFull(summary.totalNilaiIn) },
-      { Field: 'Nilai Keluar', Value: fmtFull(summary.totalNilaiOut) },
+    const sheets: XlsxSheet[] = [
+      {
+        name: 'Kartu Stok',
+        title: `KARTU STOK — ${barang.nama}`,
+        subtitle: `${barang.kategori?.kode || ''} · ${barang.kategori?.nama || ''} · Stok saat ini: ${stok?.stok ?? 0} ${barang.satuan}`,
+        columns: [
+          { header: 'Tanggal',         key: 'tanggal',      width: 14 },
+          { header: 'Tipe',            key: 'tipe',         width: 10 },
+          { header: 'Qty',             key: 'qty',          width: 10, format: 'number' },
+          { header: 'Harga Satuan (Rp)', key: 'harga_satuan', width: 18, format: 'currency' },
+          { header: 'Total (Rp)',      key: 'total',        width: 18, format: 'currency' },
+          { header: 'Tipe Ref',        key: 'ref_type',     width: 12 },
+          { header: 'Keterangan',      key: 'keterangan',   width: 30 },
+          { header: 'Created At',      key: 'created_at',   width: 22 },
+        ],
+        rows: movementsRows,
+      },
+      {
+        name: 'Summary',
+        title: 'SUMMARY KARTU STOK',
+        columns: [
+          { header: 'Field', key: 'field', width: 24 },
+          { header: 'Value', key: 'value', width: 28 },
+        ],
+        rows: [
+          { field: 'Nama Barang',  value: barang.nama },
+          { field: 'SKU',          value: barang.sku || '-' },
+          { field: 'Kategori',     value: barang.kategori?.nama || '-' },
+          { field: 'Satuan',       value: barang.satuan },
+          { field: 'Stok Minimum', value: Number(barang.stok_min) },
+          { field: 'Stok Aktual',  value: Number(stok?.stok ?? 0) },
+          { field: 'Total Masuk',  value: summary.totalIn },
+          { field: 'Total Keluar', value: summary.totalOut },
+          { field: 'Total Adjust', value: summary.totalAdj },
+          { field: 'Nilai Masuk',  value: fmtFull(summary.totalNilaiIn) },
+          { field: 'Nilai Keluar', value: fmtFull(summary.totalNilaiOut) },
+        ],
+      },
     ]
-    const ws2 = XLSX.utils.json_to_sheet(summaryRows)
-    XLSX.utils.book_append_sheet(wb, ws2, 'Summary')
 
-    const filename = `Kartu_Stok_${barang.nama.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`
-    XLSX.writeFile(wb, filename)
+    exportAndDownloadXlsx({
+      filename: `Kartu_Stok_${barang.nama.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      sheets,
+      companyName: 'Ekspedisi Dashboard',
+    })
   }
 
   const stokNumber = Number(stok?.stok ?? 0)

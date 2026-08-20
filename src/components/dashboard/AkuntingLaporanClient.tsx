@@ -1,10 +1,19 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import * as XLSX from 'xlsx'
+import { useState } from 'react'
+import dynamic from 'next/dynamic'
+import { exportAndDownloadXlsx, type XlsxSheet } from '@/lib/export/xlsx'
+import { PdfReportTemplate, type PdfExportOptions } from '@/lib/export/pdf'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
+
+// Client-only lazy load PDFDownloadLink (browser-only)
+const PDFDownloadLink = dynamic(
+  () => import('@react-pdf/renderer').then(mod => mod.PDFDownloadLink),
+  { ssr: false }
+)
 
 export default function AkuntingLaporanClient({
   outlet, selectedPeriode, currentPeriode, labaRugi, breakdown, cashflow, neraca,
@@ -26,53 +35,115 @@ export default function AkuntingLaporanClient({
   const incomeItems = breakdown.filter((b: any) => Number(b.nominal_income) > 0)
   const expenseItems = breakdown.filter((b: any) => Number(b.nominal_expense) > 0)
 
+  const [pdfBusy, setPdfBusy] = useState(false)
+
   function exportXLSX() {
-    // Sheet 1: Laba-Rugi
-    const lrRows = [
-      { Section: 'PENDAPATAN', Kode: '', Nama: '', Nominal: '' },
-      ...incomeItems.map((b: any) => ({
-        Section: '', Kode: b.kategori_kode, Nama: b.kategori_nama, Nominal: Number(b.nominal_income),
-      })),
-      { Section: 'Total Income', Kode: '', Nama: '', Nominal: income },
-      { Section: '', Kode: '', Nama: '', Nominal: '' },
-      { Section: 'BEBAN', Kode: '', Nama: '', Nominal: '' },
-      ...expenseItems.map((b: any) => ({
-        Section: '', Kode: b.kategori_kode, Nama: b.kategori_nama, Nominal: Number(b.nominal_expense),
-      })),
-      { Section: 'Total Expense', Kode: '', Nama: '', Nominal: expense },
-      { Section: '', Kode: '', Nama: '', Nominal: '' },
-      { Section: 'LABA KOTOR', Kode: '', Nama: '', Nominal: laba },
+    // Sprint 5: refactor pakai helper generic dengan multi-sheet + currency format
+    const lrRows: XlsxSheet['rows'] = []
+    lrRows.push({ section: 'PENDAPATAN', kode: '', nama: '', nominal: '' })
+    incomeItems.forEach((b: any) => {
+      lrRows.push({ section: '', kode: b.kategori_kode, nama: b.kategori_nama, nominal: Number(b.nominal_income) })
+    })
+    lrRows.push({ section: 'Total Income', kode: '', nama: '', nominal: income })
+    lrRows.push({ section: '', kode: '', nama: '', nominal: '' })
+    lrRows.push({ section: 'BEBAN', kode: '', nama: '', nominal: '' })
+    expenseItems.forEach((b: any) => {
+      lrRows.push({ section: '', kode: b.kategori_kode, nama: b.kategori_nama, nominal: Number(b.nominal_expense) })
+    })
+    lrRows.push({ section: 'Total Expense', kode: '', nama: '', nominal: expense })
+    lrRows.push({ section: '', kode: '', nama: '', nominal: '' })
+    lrRows.push({ section: 'LABA KOTOR', kode: '', nama: '', nominal: laba })
+
+    const sheets: XlsxSheet[] = [
+      {
+        name: 'Laba-Rugi',
+        title: 'LAPORAN LABA-RUGI',
+        subtitle: `${outlet.nama} (${outlet.kode}) - Periode ${selectedPeriode}`,
+        columns: [
+          { header: 'Section', key: 'section', width: 16 },
+          { header: 'Kode Akun', key: 'kode', width: 12 },
+          { header: 'Nama Akun', key: 'nama', width: 36 },
+          { header: 'Nominal (Rp)', key: 'nominal', width: 18, format: 'currency' },
+        ],
+        rows: lrRows,
+        footerNote: 'Dihasilkan otomatis oleh Ekspedisi Dashboard',
+      },
+      {
+        name: 'Cashflow',
+        title: 'LAPORAN CASHFLOW',
+        subtitle: `Per Metode Bayar - Periode ${selectedPeriode}`,
+        columns: [
+          { header: 'Metode', key: 'metode', width: 16 },
+          { header: 'Cashflow (Rp)', key: 'cashflow', width: 18, format: 'currency' },
+        ],
+        rows: cashflow.map((c: any) => ({
+          metode: c.metode,
+          cashflow: Number(c.cashflow),
+        })),
+      },
     ]
-    const wsLR = XLSX.utils.json_to_sheet(lrRows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, wsLR, 'Laba-Rugi')
 
-    // Sheet 2: Cashflow
-    const wsCF = XLSX.utils.json_to_sheet(
-      cashflow.map((c: any) => ({
-        Metode: c.metode,
-        Cashflow: Number(c.cashflow),
-      }))
-    )
-    XLSX.utils.book_append_sheet(wb, wsCF, 'Cashflow')
-
-    // Sheet 3: Neraca
     if (neraca) {
-      const wsNR = XLSX.utils.json_to_sheet([
-        { Akun: 'Kas',            Nilai: Number(neraca.total_aset_kas) },
-        { Akun: 'Total Aset',     Nilai: Number(neraca.total_aset) },
-        { Akun: '',               Nilai: '' },
-        { Akun: 'Modal Pemilik',  Nilai: Number(neraca.total_modal_pemilik) },
-        { Akun: 'Laba Ditahan',   Nilai: Number(neraca.total_laba_ditahan) },
-        { Akun: 'Total Equity',   Nilai: Number(neraca.total_equity) },
-        { Akun: '',               Nilai: '' },
-        { Akun: 'Selisih (harus 0)', Nilai: Number(neraca.selisih) },
-      ])
-      XLSX.utils.book_append_sheet(wb, wsNR, 'Neraca')
+      sheets.push({
+        name: 'Neraca',
+        title: 'LAPORAN NERACA',
+        subtitle: 'Posisi Keuangan - Snapshot',
+        columns: [
+          { header: 'Akun', key: 'akun', width: 32 },
+          { header: 'Nilai (Rp)', key: 'nilai', width: 18, format: 'currency' },
+        ],
+        rows: [
+          { akun: 'Kas', nilai: Number(neraca.total_aset_kas) },
+          { akun: 'Total Aset', nilai: Number(neraca.total_aset) },
+          { akun: '', nilai: '' },
+          { akun: 'Modal Pemilik', nilai: Number(neraca.total_modal_pemilik) },
+          { akun: 'Laba Ditahan', nilai: Number(neraca.total_laba_ditahan) },
+          { akun: 'Total Equity', nilai: Number(neraca.total_equity) },
+          { akun: '', nilai: '' },
+          { akun: 'Selisih (harus 0)', nilai: Number(neraca.selisih) },
+        ],
+      })
     }
 
-    const filename = `Laporan_Keuangan_${outlet.kode}_${selectedPeriode}.xlsx`
-    XLSX.writeFile(wb, filename)
+    exportAndDownloadXlsx({
+      filename: `Laporan_Keuangan_${outlet.kode}_${selectedPeriode}.xlsx`,
+      sheets,
+      companyName: outlet.nama,
+    })
+  }
+
+  function getPdfOptions(): PdfExportOptions {
+    const lrRows = [
+      { cells: ['PENDAPATAN', '', '', ''] },
+      ...incomeItems.map((b: any): { cells: (string | number)[] } => ({
+        cells: ['', b.kategori_kode, b.kategori_nama, fmtRp(b.nominal_income)],
+      })),
+      { cells: ['Total Income', '', '', fmtRp(income)], isTotal: true },
+      { cells: ['', '', '', ''], isEmpty: true },
+      { cells: ['BEBAN', '', '', ''] },
+      ...expenseItems.map((b: any): { cells: (string | number)[] } => ({
+        cells: ['', b.kategori_kode, b.kategori_nama, fmtRp(b.nominal_expense)],
+      })),
+      { cells: ['Total Expense', '', '', fmtRp(expense)], isTotal: true },
+      { cells: ['', '', '', ''], isEmpty: true },
+      { cells: ['LABA KOTOR', '', '', fmtRp(laba)], isTotal: true },
+    ]
+    return {
+      reportTitle: 'Laporan Keuangan',
+      reportSubtitle: `Periode ${selectedPeriode}`,
+      wpInfo: {
+        nama_wp: outlet.nama,
+        outlet_nama: outlet.nama,
+        outlet_kode: outlet.kode,
+      },
+      columns: [
+        { header: 'Section / Kategori', width: '2.5', align: 'left' },
+        { header: 'Kode', width: '1', align: 'left' },
+        { header: 'Nama Akun', width: '4', align: 'left' },
+        { header: 'Nominal', width: '2', align: 'right', bold: true },
+      ],
+      rows: lrRows,
+    }
   }
 
   return (
@@ -103,6 +174,26 @@ export default function AkuntingLaporanClient({
               }}>
               📥 Export XLSX (3 sheet)
             </button>
+            {/* Sprint 5: Tombol Export PDF */}
+            <PDFDownloadLink
+              document={<PdfReportTemplate {...getPdfOptions()} />}
+              fileName={`Laporan_Keuangan_${outlet.kode}_${selectedPeriode}.pdf`}
+              style={{ textDecoration: 'none' }}
+            >
+              {({ loading }: { loading: boolean }) => (
+                <button
+                  disabled={loading || pdfBusy}
+                  style={{
+                    background: loading ? '#1e2433' : '#3b82f6', border: 'none', color: '#fff',
+                    padding: '10px 16px', borderRadius: 8,
+                    cursor: loading ? 'wait' : 'pointer',
+                    fontSize: 13, fontWeight: 700,
+                  }}
+                >
+                  {loading ? '⏳ Generating PDF...' : '📄 Export PDF'}
+                </button>
+              )}
+            </PDFDownloadLink>
           </div>
         </div>
       </div>

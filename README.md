@@ -2,6 +2,14 @@
 
 Sistem manajemen internal untuk outlet ekspedisi multi-franchise (Lion Parcel, JNE, J&T, Wahana).
 
+**Status Modul:**
+- ✅ Sprint 0 — Setup, Dashboard, Import XLSX
+- ✅ Sprint 1 — Inventaris (stok, opname, kartu stok)
+- ✅ Sprint 2 — Akunting (income, expense, recurring, closing)
+- ✅ Sprint 3 — Pajak (PPh Final 0,5%, NPWP, SPT estimator)
+- ✅ Sprint 4 — Storage + Recurring (upload nota, SSP)
+- ✅ Sprint 5 — Export PDF/XLSX + Polish UX
+
 ---
 
 ## 🚀 Langkah Setup (Lokal)
@@ -172,3 +180,47 @@ Setelah mendapatkan sample laporan JNE/Wahana/J&T:
 **Login redirect loop** → Hapus cookies browser, coba lagi
 
 **Build error TypeScript** → Jalankan `npm run build` untuk cek semua error sebelum deploy
+
+---
+
+## 📤 Export Laporan (Sprint 5)
+
+Setelah Sprint 5, setiap halaman laporan punya tombol **Export XLSX** dan beberapa punya **Export PDF**:
+
+| Halaman | Tombol Export |
+|---|---|
+| `/dashboard/akunting/laba-rugi` | 📥 Export XLSX (3 sheet) + 📄 Export PDF |
+| `/dashboard/inventaris/[id]` | 📥 Export XLSX (Kartu Stok + Summary) |
+| `/dashboard/pajak/spt` | 📋 Copy CSV + 🖨️ Print/Save as PDF |
+
+### Tambah kurir baru
+Helper Excel generic di `src/lib/export/xlsx.ts` — bisa dipakai untuk laporan apapun:
+```ts
+import { exportAndDownloadXlsx } from '@/lib/export/xlsx'
+exportAndDownloadXlsx({
+  filename: 'Laporan_X.xlsx',
+  sheets: [{ name: 'Sheet1', columns: [...], rows: [...] }],
+})
+```
+
+### Export PDF laporan internal
+Gunakan template `PdfReportTemplate` di `src/lib/export/pdf.tsx` (berbasis `@react-pdf/renderer`).
+
+### Library yang dipakai
+- `xlsx` (SheetJS) — client-side XLSX generation
+- `@react-pdf/renderer` — client-side PDF (~5MB, tanpa Puppeteer)
+
+## 🗃️ Storage Setup (Sprint 4)
+
+Setup 2 bucket Supabase (private):
+1. `nota-expense` — foto nota expense, ≤5MB, JPG/PNG/WebP/PDF
+2. `bukti-pajak` — foto/PDF SSP PPh Final, ≤5MB, JPG/PNG/PDF
+
+Jalankan `supabase/migrations/006_storage_recurring.sql` di SQL Editor untuk RLS policies.
+
+## 🧾 Pajak Setup (Sprint 3)
+
+1. Buka `/dashboard/pajak/pengaturan` → isi NPWP, nama WP, pilih PKP/non-PKP, form_spt
+2. Setiap kali **Tutup Buku** di `/dashboard/akunting/closing`, sistem auto-generate PPh Final 0,5% ke `pajak_rekap`
+3. Reminder badge muncul di dashboard utama saat jatuh tempo ≤7 hari
+4. Buka `/dashboard/pajak/spt` untuk lihat SPT estimator + Export PDF/CSV untuk konsultan pajak
