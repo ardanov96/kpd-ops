@@ -1,6 +1,26 @@
-export type UserRole = 'owner' | 'admin' | 'staff'
-export type KurirKode = 'LION' | 'JNE' | 'JNT' | 'WAHANA'
-export type TransaksiStatus = 'POD' | 'CNX' | 'PENDING' | 'TRANSIT' | 'RETURN'
+// ============================================================
+// CONSTANTS (Sprint 6 - Fix ISU #18)
+// Extract dari inline literals yang tersebar di banyak file.
+// ============================================================
+
+export const PAJAK_STATUS = ['BELUM', 'LUNAS', 'BEAS'] as const
+export const TRANSAKSI_TIPE = ['MASUK', 'KELUAR', 'TRANSFER'] as const
+export const METODE_PEMBAYARAN = ['CASH', 'BANK', 'EWALLET'] as const
+export const SUMBER_TRANSAKSI = ['MANUAL', 'INVENTARIS', 'KURIR', 'RECURRING', 'CLOSING', 'PRIVE'] as const
+export const TIPE_STOK_MOVEMENT = ['IN', 'OUT', 'ADJ'] as const
+export const STATUS_OPNAME = ['DRAFT', 'FINAL'] as const
+export const REF_TYPE_STOK = ['MANUAL', 'OPNAME', 'INVENTARIS_AUTO'] as const
+export const TIPE_AKUN = ['INCOME', 'EXPENSE', 'ASSET', 'LIABILITY', 'EQUITY'] as const
+export const JENIS_PAJAK = ['PPH_FINAL_05'] as const
+export const FORM_SPT_OPTIONS = ['1770S3', '1770S', '1771'] as const
+export const METODE_PPH_OPTIONS = ['FINAL_05'] as const
+export const KURIR_KODE = ['LION', 'JNE', 'JNT', 'WAHANA'] as const
+export const USER_ROLES = ['owner', 'admin', 'staff'] as const
+export const TRANSAKSI_STATUS = ['POD', 'CNX', 'PENDING', 'TRANSIT', 'RETURN'] as const
+
+export type UserRole = (typeof USER_ROLES)[number]
+export type KurirKode = (typeof KURIR_KODE)[number]
+export type TransaksiStatus = (typeof TRANSAKSI_STATUS)[number]
 
 export interface Outlet {
   id: string
