@@ -5,6 +5,16 @@ import { apiBadRequest, apiError, apiOk } from '@/lib/api/response'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Sprint 6 - Fix BUG #13 (lengkap):
+ *   Panggil RPC `fn_stok_keluar_atomic` yang:
+ *   - Lock row barang (FOR UPDATE) → anti race condition
+ *   - Cek stok + insert movement dalam 1 transaction
+ *   - Trigger auto-expense tetap jalan AFTER insert
+ *   - Return stok sebelum & sesudah untuk UI feedback
+ *
+ *   Lihat migration: supabase/migrations/012_stok_keluar_atomic.sql
+ */
 export async function POST(req: NextRequest) {
   const guard = await requireOwner(req)
   if (isAuthError(guard)) return guard
@@ -23,63 +33,64 @@ export async function POST(req: NextRequest) {
   const q = Number(qty)
   if (!q || q <= 0) return apiBadRequest('qty harus > 0')
   const hs = Number(harga_satuan) || 0
-  // FIX BUG #13 (Sprint 6): harga_satuan harus > 0 untuk stok keluar
-  // Sebelumnya 0 diizinkan → auto-expense jadi 0 (bug pembukuan)
   if (hs <= 0) return apiBadRequest('harga_satuan harus > 0 (untuk auto-journal expense)')
   if (!tanggal) return apiBadRequest('tanggal wajib diisi')
 
   const admin = createAdminClient()
 
-  // ── Cek barang exists & aktif ──────────────────────
-  const { data: barang, error: errBarang } = await admin
+  // Defense-in-depth: cek outlet_id barang sebelum panggil RPC
+  const { data: barang } = await admin
     .from('barang')
-    .select('id, outlet_id, aktif')
+    .select('outlet_id')
     .eq('id', barang_id)
     .single()
 
-  if (errBarang || !barang) return apiBadRequest('Barang tidak ditemukan')
-  if (!barang.aktif) return apiBadRequest('Barang non-aktif, tidak bisa dicatat')
-
-  // Defense-in-depth
-  if (profile.role !== 'owner' && profile.outlet_id !== barang.outlet_id) {
+  if (barang && profile.role !== 'owner' && profile.outlet_id !== barang.outlet_id) {
     return NextResponse.json({ error: 'Akses ditolak ke outlet ini' }, { status: 403 })
   }
 
-  // ── Cek stok cukup (via view v_stok_aktual) ────────
-  const { data: stokRow, error: errStok } = await admin
-    .from('v_stok_aktual')
-    .select('stok')
-    .eq('barang_id', barang_id)
-    .single()
+  // Panggil atomic RPC function (auto-handle race condition & validasi)
+  const { data, error } = await admin.rpc('fn_stok_keluar_atomic', {
+    p_barang_id: barang_id,
+    p_qty: q,
+    p_harga_satuan: hs,
+    p_tanggal: tanggal,
+    p_keterangan: keterangan || null,
+  })
 
-  const stokSekarang = Number(stokRow?.stok ?? 0)
-  if (stokSekarang < q) {
-    return apiBadRequest(`Stok tidak cukup. Stok saat ini: ${stokSekarang}, diminta: ${q}`)
+  if (error) {
+    // Translate error Supabase jadi pesan user-friendly
+    const msg = error.message || ''
+    if (msg.includes('Stok tidak cukup')) {
+      return apiBadRequest(msg.replace(/^ERROR: /, ''))
+    }
+    if (msg.includes('qty harus')) {
+      return apiBadRequest(msg.replace(/^ERROR: /, ''))
+    }
+    if (msg.includes('harga_satuan harus')) {
+      return apiBadRequest(msg.replace(/^ERROR: /, ''))
+    }
+    if (msg.includes('Barang tidak ditemukan')) {
+      return apiBadRequest('Barang tidak ditemukan')
+    }
+    if (msg.includes('Barang non-aktif')) {
+      return apiBadRequest('Barang non-aktif, tidak bisa dicatat')
+    }
+    return apiError(error, 500, '[POST stok-keluar]', 'Gagal mencatat stok keluar')
   }
 
-  const total = q * hs
+  // Ambil hasil movement_id + stok info
+  const result = Array.isArray(data) && data.length > 0 ? data[0] : data
+  const movementId = (result as any)?.movement_id
+  const stokSebelum = (result as any)?.stok_sebelum
+  const stokSesudah = (result as any)?.stok_sesudah
+  const total = (result as any)?.total
 
-  // ── Insert movement ────────────────────────────────
-  // Trigger `trg_auto_expense_stok_out` akan auto-insert ke transaksi_keuangan
-  // (sumber: INVENTARIS, kategori: 5100 Beban ATK).
-  const { data, error } = await admin
-    .from('stok_movement')
-    .insert({
-      outlet_id: barang.outlet_id,
-      barang_id,
-      tipe: 'OUT',
-      qty: q,
-      harga_satuan: hs,
-      total,
-      ref_type: 'MANUAL',
-      ref_id: null,
-      keterangan: keterangan || null,
-      tanggal,
-      created_by: profile.id,
-    })
-    .select()
-    .single()
-
-  if (error) return apiError(error, 500, '[POST stok-keluar]', 'Gagal mencatat stok keluar')
-  return apiOk(data, 201)
+  return apiOk({
+    ok: true,
+    movement_id: movementId,
+    stok_sebelum: Number(stokSebelum),
+    stok_sesudah: Number(stokSesudah),
+    total: Number(total),
+  })
 }

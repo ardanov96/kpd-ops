@@ -324,14 +324,96 @@
 
 ---
 
+## 🏛️ Keputusan Sprint 6 — Security & Robustness
+
+### D-027: API auth wrapper (owner-only write, auth-only read)
+**Tanggal:** 22 Agustus 2026
+**Konteks:** Sebelumnya 54 API routes pakai `createAdminClient()` (service_role) yang BYPASS RLS total. Siapapun yang login (termasuk staff) bisa panggil endpoint tanpa filter. Padahal README/D-005 claim ada RLS aktif.
+**Keputusan:**
+- Tambah `src/lib/api/auth.ts` dengan `requireOwner()` (write ops) dan `requireAuth()` (read ops)
+- Staff hanya boleh akses outlet sendiri (defense-in-depth, filter `profile.outlet_id`)
+- Storage routes (`upload-bukti`, `get-signed-url`) owner-only per D-006 (NPWP/SSP sensitif)
+**Alasan:**
+- Konsisten dengan D-005 (owner-only write) dan D-006 (pajak owner-only)
+- Default lebih aman: kalau lupa, route hanya bisa diakses owner
+- Service_role masih dipakai untuk query setelah auth passed (efisien, tidak double round-trip)
+
+### D-028: Backup pakai `pg` client streaming (bukan `pg_dump` CLI)
+**Tanggal:** 22 Agustus 2026
+**Konteks:** `pg_dump` CLI tidak jalan di Vercel serverless. Sebelumnya code ada tapi tidak akan execute.
+**Keputusan:** Replace dengan `pg` client (`pg ^8.23.0` + `@types/pg`) — query per tabel, generate INSERT statements, gzip, upload S3.
+**Alasan:**
+- Vercel serverless tidak punya CLI binary (`pg_dump` tidak ada)
+- `pg` client pure Node.js, jalan di mana saja
+- Backup per tabel dengan graceful error — kalau 1 tabel gagal, tabel lain tetap di-backup
+- Output `tables_backed_up` + `tables_failed` untuk monitoring
+
+### D-029: Stok keluar atomic via RPC function
+**Tanggal:** 22 Agustus 2026
+**Konteks:** Race condition — 2 request concurrent bisa over-draw stok (cek stok + insert terpisah).
+**Keputusan:** Bungkus dalam function `fn_stok_keluar_atomic` dengan `SELECT ... FOR UPDATE` lock.
+**Alasan:**
+- Row-level lock + transaction atomic = anti race condition
+- Trigger auto-expense tetap jalan AFTER insert (no breaking change)
+- Return `stok_sebelum` & `stok_sesudah` untuk UI feedback
+- Konsisten dengan `fn_save_opname_atomic` (Sprint 1) pattern
+
+### D-030: Middleware skip `/api/admin/*` & `/api/cron/*`
+**Tanggal:** 22 Agustus 2026
+**Konteks:** Middleware panggil `getUser()` untuk semua request, termasuk endpoint yang sudah punya Bearer token validation sendiri.
+**Keputusan:** Skip middleware untuk path `/api/admin/*` dan `/api/cron/*`.
+**Alasan:**
+- Extra latency ~50-100ms per cron call tanpa manfaat (token sudah divalidasi di route)
+- Clean separation: page-level pakai getUser, API token-level pakai Bearer
+
+### D-031: Validasi closing lock di `pajak/bayar`
+**Tanggal:** 22 Agustus 2026
+**Konteks:** Sebelumnya owner bisa edit rekap pajak bulan yang sudah closing → pembukuan bisa dimanipulasi.
+**Keputusan:** Cek `periode_closing.is_locked` sebelum update `pajak_rekap`. Return 403 kalau locked.
+**Alasan:**
+- Konsistensi data pembukuan (Sprint 2 decision: closing = locked)
+- Audit trail untuk konsultan pajak
+- Mencegah human error (edit bulan yang sudah lewat)
+
+### D-032: Timezone Asia/Makassar (WIB) helper
+**Tanggal:** 22 Agustus 2026
+**Konteks:** Semua `new Date()` pakai UTC, padahal owner di Indonesia (WIB). Jam 01:00 WIB di Indonesia = tanggal "kemarin" di UTC.
+**Keputusan:** Tambah `src/lib/timezone.ts` dengan helper `getCurrentPeriodeWIB()`, `getTodayWIB()`, `getLastNPeriodesWIB()`.
+**Alasan:**
+- Konsistensi tanggal & bulan di seluruh dashboard
+- Edge case bulan/tahun (Des → Jan) handled correctly
+- Tetap pure JS (no external dep) — ringan, 0 cost
+
+### D-033: Centralized API response helper
+**Tanggal:** 22 Agustus 2026
+**Konteks:** Error.message dari Supabase langsung dikembalikan ke client — bocor info schema DB.
+**Keputusan:** Tambah `src/lib/api/response.ts` dengan `apiOk()`, `apiError()`, `apiBadRequest()`, `apiNotFound()`.
+**Alasan:**
+- Log detail ke server (console.error), return generic ke client
+- Konsisten error format `{ error: string }` di semua endpoint
+- Mapping Supabase error code (PGRST116 → 404, dll) untuk UX lebih baik
+
+### D-034: Extract TypeScript constants dari inline literals
+**Tanggal:** 22 Agustus 2026
+**Konteks:** Konstanta enum tersebar sebagai inline `['BELUM', 'LUNAS', 'BEAS']` di banyak file.
+**Keputusan:** Extract ke `src/types/index.ts` sebagai `PAJAK_STATUS`, `TRANSAKSI_TIPE`, `METODE_PEMBAYARAN`, dll.
+**Alasan:**
+- DRY: 1 sumber kebenaran
+- Type-safe: `(typeof PAJAK_STATUS)[number]` otomatis derived
+- Mudah add new value (cuma tambah di 1 tempat)
+
+---
+
 ## ❓ Keputusan yang Masih Pending
 
 | # | Keputusan | Status | Action |
 |---|---|---|---|
 | P-001 | Form SPT aktual (1770S3 atau 1771) | ⏳ Pending | Konfirmasi owner sebelum Sprint 3 |
 | P-002 | Modal awal outlet (uang yang ditanam di awal) | ⏳ Pending | Tambah field di `kategori_akun` atau input manual |
-| P-003 | Backup/restore database | ⏳ Pending | Belum ada strategi, belum urgent |
+| P-003 | Backup/restore database | ✅ DONE (D-028, Sprint 6) | Backup ke S3 sudah jalan via Vercel Cron |
 | P-004 | Multi-currency (untuk STT internasional?) | ⏳ Not needed | LION/JNE/J&T/WAHANA semua IDR |
+| P-005 | AkuntingExpenseForm atomic insert+upload | ⏳ Sprint 7+ | Pakai RPC atau endpoint baru untuk 1 transaksi |
+| P-006 | Search STT di halaman transaksi | ⏳ Sprint 7+ | Quick win: tambah filter di GET transaksi |
 
 ---
 
