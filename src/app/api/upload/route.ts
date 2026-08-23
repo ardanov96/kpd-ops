@@ -43,7 +43,24 @@ export async function POST(req: NextRequest) {
     })
     const duplikatList = Object.entries(duplikatMap).map(([stt, periode]) => ({ stt, periode }))
 
+    // ✅ Cari outlet_id untuk transaksi (FK NOT NULL).
+    // Pakai outlet pertama (sama seperti halaman server component existing).
+    const { data: outletRow } = await supabase
+      .from('outlets')
+      .select('id')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .single()
+    const outletId = outletRow?.id ?? null
+
+    if (!outletId) {
+      return NextResponse.json({
+        error: 'Outlet belum ada di database. Tambahkan outlet di Supabase terlebih dahulu.',
+      }, { status: 400 })
+    }
+
     const insertData = rows.map(row => ({
+      outlet_id: outletId,
       kurir_id: kurirData.id,
       nomor_stt: row.nomor_stt,
       tanggal: row.tanggal,
@@ -85,8 +102,38 @@ export async function POST(req: NextRequest) {
 
     const successRows = inserted?.length || 0
 
+    // ✅ Sprint 2 integration: auto-aggregate income per periode (idempotent).
+    // Setelah insert ke `transaksi`, panggil fn_aggregate_income(outlet_id, 'YYYY-MM')
+    // untuk generate/update baris KURIR income di `transaksi_keuangan` (kategori 4100).
+    // Function ini idempotent — kalau sudah ada baris KURIR untuk periode itu,
+    // dia akan replace dengan net omzet terbaru. Aman untuk upload berulang.
+    // Lihat 004_akunting.sql untuk definisi function.
+    let aggregatePeriods: string[] = []
+    let aggregateErrors: string[] = []
+    if (successRows > 0) {
+      const periodSet = new Set<string>()
+      for (const row of rows) {
+        if (!row.tanggal) continue
+        // Normalize ke YYYY-MM (row.tanggal bisa Date object atau string ISO)
+        const t = String(row.tanggal).slice(0, 7)
+        if (/^\d{4}-\d{2}$/.test(t)) periodSet.add(t)
+      }
+      aggregatePeriods = Array.from(periodSet)
+      for (const p of aggregatePeriods) {
+        const { error: aggErr } = await supabase
+          .rpc('fn_aggregate_income', { p_outlet_id: outletId, p_periode: p })
+        if (aggErr) {
+          console.error(`[upload] fn_aggregate_income(${p}) gagal:`, aggErr.message)
+          aggregateErrors.push(`${p}: ${aggErr.message}`)
+        } else {
+          console.log(`[upload] fn_aggregate_income(${p}) ok`)
+        }
+      }
+    }
+
     const { error: logError } = await supabase.from('upload_logs').insert({
       kurir_id: kurirData.id,
+      outlet_id: outletId,
       filename: file.name,
       periode,
       total_rows: totalRows,
@@ -103,8 +150,11 @@ export async function POST(req: NextRequest) {
       successRows,
       errorRows: errors.length,
       errors: errors.slice(0, 10),
-      duplikat: duplikatList,        // ✅ kirim ke client
+      duplikat: duplikatList,
       duplikatCount: duplikatList.length,
+      // ✅ tambahan info auto-aggregate income
+      aggregatedPeriods: aggregatePeriods,
+      aggregateErrors: aggregateErrors.length > 0 ? aggregateErrors : undefined,
     })
 
   } catch (err) {

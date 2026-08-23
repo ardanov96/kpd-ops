@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActiveOutlet } from '@/lib/supabase/outlet'
 import { redirect } from 'next/navigation'
 import PajakRekapClient from '@/components/dashboard/PajakRekapClient'
 
@@ -12,12 +13,8 @@ export default async function PajakRekapPage({
   const supabase = createAdminClient()
   const params = await searchParams
 
-  const { data: outlet } = await supabase
-    .from('outlets')
-    .select('id, kode, nama')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .single()
+  // ✅ Pakai helper (Fix #2)
+  const outlet = await getActiveOutlet(supabase)
 
   if (!outlet) redirect('/dashboard')
 

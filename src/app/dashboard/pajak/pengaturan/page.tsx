@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActiveOutlet } from '@/lib/supabase/outlet'
 import { redirect } from 'next/navigation'
 import PajakPengaturanClient from '@/components/dashboard/PajakPengaturanClient'
 
@@ -7,12 +8,8 @@ export const dynamic = 'force-dynamic'
 export default async function PajakPengaturanPage() {
   const supabase = createAdminClient()
 
-  const { data: outlet } = await supabase
-    .from('outlets')
-    .select('id, kode, nama')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .single()
+  // ✅ Pakai helper (Fix #2)
+  const outlet = await getActiveOutlet(supabase)
 
   if (!outlet) redirect('/dashboard')
 

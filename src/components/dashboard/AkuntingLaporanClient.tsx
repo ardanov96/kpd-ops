@@ -5,6 +5,7 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { exportAndDownloadXlsx, type XlsxSheet } from '@/lib/export/xlsx'
 import { PdfReportTemplate, type PdfExportOptions } from '@/lib/export/pdf'
+import EmptyState from './EmptyState'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
@@ -203,7 +204,14 @@ export default function AkuntingLaporanClient({
         <div style={{ background: '#111827', border: '1px solid #1e2433', borderRadius: 12, padding: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px', color: '#22c55e' }}>⬆️ PENDAPATAN</h2>
           {incomeItems.length === 0 ? (
-            <div style={{ color: '#64748b', fontSize: 13, padding: '12px 0' }}>Belum ada income.</div>
+            <EmptyState
+              icon="💰"
+              title="Belum ada pendapatan"
+              description="Pendapatan otomatis ter-aggregate setelah upload laporan XLSX. Atau input manual di menu Input Transaksi."
+              ctaLabel="📤 Upload Laporan"
+              ctaHref="/dashboard/upload"
+              compact
+            />
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <tbody>
@@ -230,7 +238,14 @@ export default function AkuntingLaporanClient({
 
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: '20px 0 12px', color: '#ef4444' }}>⬇️ BEBAN</h2>
           {expenseItems.length === 0 ? (
-            <div style={{ color: '#64748b', fontSize: 13, padding: '12px 0' }}>Belum ada expense.</div>
+            <EmptyState
+              icon="📉"
+              title="Belum ada beban"
+              description="Beban otomatis dari stok keluar inventaris, atau input manual (WiFi, listrik, bensin)."
+              ctaLabel="➕ Input Transaksi"
+              ctaHref="/dashboard/akunting/expense"
+              compact
+            />
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <tbody>

@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActiveOutlet } from '@/lib/supabase/outlet'
 import AkuntingClient from '@/components/dashboard/AkuntingClient'
 
 export const dynamic = 'force-dynamic'
@@ -6,13 +7,9 @@ export const dynamic = 'force-dynamic'
 export default async function AkuntingPage() {
   const supabase = createAdminClient()
 
-  // Ambil outlet pertama (hardcoded - sesuai konsistensi pola existing)
-  const { data: outlet } = await supabase
-    .from('outlets')
-    .select('id, kode, nama')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .single()
+  // ✅ Pakai helper (Fix #2): prefer profile.outlet_id dari user login,
+  // fallback ke outlet paling lama.
+  const outlet = await getActiveOutlet(supabase)
 
   if (!outlet) {
     return (

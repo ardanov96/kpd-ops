@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActiveOutlet } from '@/lib/supabase/outlet'
 import AkuntingRecurringClient from '@/components/dashboard/AkuntingRecurringClient'
 
 export const dynamic = 'force-dynamic'
@@ -6,13 +7,8 @@ export const dynamic = 'force-dynamic'
 export default async function AkuntingRecurringPage() {
   const supabase = createAdminClient()
 
-  // Ambil outlet
-  const { data: outlet } = await supabase
-    .from('outlets')
-    .select('id, kode, nama')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .single()
+  // ✅ Pakai helper (Fix #2)
+  const outlet = await getActiveOutlet(supabase)
 
   if (!outlet) {
     return (

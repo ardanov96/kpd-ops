@@ -4,6 +4,8 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { TipeTransaksiKeuangan, TipeAkun, MetodeBayar, KategoriAkun, TransaksiKeuangan } from '@/types'
 import ViewFileButton from './ViewFileButton'
+import { useConfirm } from './ConfirmDialog'
+import { useToast } from './Toast'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
@@ -66,12 +68,8 @@ export default function AkuntingExpenseForm({
   const [busy, setBusy] = useState(false)
   const [uploadBusy, setUploadBusy] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
-
-  function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
-    setToast({ msg, kind })
-    setTimeout(() => setToast(null), 3500)
-  }
+  const { showToast } = useToast()
+  const { confirm: confirmDialog, ConfirmNode } = useConfirm()
 
   // Filter kategori based on tipe
   const tipeToAkunTipe: Record<TipeTransaksiKeuangan, TipeAkun[]> = {
@@ -227,7 +225,13 @@ export default function AkuntingExpenseForm({
   }
 
   async function hapus(id: string) {
-    if (!confirm('Hapus transaksi ini?')) return
+    const ok = await confirmDialog({
+      title: 'Hapus transaksi ini?',
+      description: 'Tindakan ini tidak bisa dibatalkan. Transaksi akan hilang permanen.',
+      confirmLabel: '🗑️ Hapus',
+      variant: 'danger',
+    })
+    if (!ok) return
     setBusy(true)
     try {
       const res = await fetch(`/api/akunting/transaksi/${id}`, { method: 'DELETE' })
@@ -511,17 +515,8 @@ export default function AkuntingExpenseForm({
         </div>
       </div>
 
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24,
-          background: toast.kind === 'ok' ? '#22c55e' : '#ef4444',
-          color: '#fff', padding: '12px 20px', borderRadius: 10,
-          fontWeight: 600, fontSize: 14, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          zIndex: 1000,
-        }}>
-          {toast.msg}
-        </div>
-      )}
+      {/* Toast & ConfirmNode sudah di-mount di <ClientProviders> di root layout */}
+      {ConfirmNode}
     </div>
   )
 }

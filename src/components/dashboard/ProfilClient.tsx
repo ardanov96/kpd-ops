@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
-export default async function ProfilClient({ user, profile }: { user: any; profile: any }) {
+export default function ProfilClient({ user, profile }: { user: any; profile: any }) {
   const supabase = createClient()
   const router = useRouter()
 

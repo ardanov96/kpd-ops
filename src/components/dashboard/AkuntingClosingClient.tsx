@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useToast } from './Toast'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
@@ -24,12 +25,7 @@ export default function AkuntingClosingClient({
   const [periode, setPeriode] = useState(selectedPeriode)
   const [confirmInput, setConfirmInput] = useState('')
   const [busy, setBusy] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
-
-  function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
-    setToast({ msg, kind })
-    setTimeout(() => setToast(null), 3500)
-  }
+  const { showToast } = useToast()
 
   function changePeriode(p: string) {
     const params = new URLSearchParams()
@@ -224,16 +220,6 @@ export default function AkuntingClosingClient({
         )}
       </div>
 
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24,
-          background: toast.kind === 'ok' ? '#22c55e' : '#ef4444',
-          color: '#fff', padding: '12px 20px', borderRadius: 10,
-          fontWeight: 600, fontSize: 14,
-        }}>
-          {toast.msg}
-        </div>
-      )}
     </div>
   )
 }

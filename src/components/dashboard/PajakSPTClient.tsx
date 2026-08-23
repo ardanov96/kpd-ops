@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import Link from 'next/link'
+import EmptyState from './EmptyState'
+import { useToast } from './Toast'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(Number(n || 0)).toLocaleString('id-ID') + ',-'
@@ -56,7 +58,7 @@ export default function PajakSPTClient({
   tahunList: string[]
 }) {
   const router = useRouter()
-  const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
+  const { showToast } = useToast()
 
   function pickTahun(t: string) {
     router.push(`/dashboard/pajak/spt?tahun=${t}`)
@@ -69,7 +71,7 @@ export default function PajakSPTClient({
   const totalBulan = Number(sptSelected?.total_bulan || 0)
 
   function printSPT() {
-    setToast({ msg: '🖨️ Membuka dialog print — gunakan "Save as PDF" untuk simpan', kind: 'ok' })
+    showToast('🖨️ Membuka dialog print — gunakan "Save as PDF" untuk simpan', 'ok', 1500)
     setTimeout(() => window.print(), 300)
   }
 
@@ -81,8 +83,7 @@ export default function PajakSPTClient({
     }).join('\n')
     const csv = header + rows + `\n\nTOTAL,${totalOmzet},,${totalPPh},${bulanLunas}/${totalBulan} lunas,,`
     navigator.clipboard.writeText(csv)
-    setToast({ msg: '📋 CSV disalin ke clipboard', kind: 'ok' })
-    setTimeout(() => setToast(null), 3000)
+    showToast('📋 CSV disalin ke clipboard', 'ok')
   }
 
   return (
@@ -162,9 +163,14 @@ export default function PajakSPTClient({
           📋 Rincian Per Bulan
         </h2>
         {rekapTahunan.length === 0 ? (
-          <div style={{ color: '#64748b', padding: 32, textAlign: 'center' }}>
-            Belum ada data rekap untuk tahun {selectedTahun}. Generate rekap bulanan dulu.
-          </div>
+          <EmptyState
+            icon="📊"
+            title={`Belum ada data SPT untuk tahun ${selectedTahun}`}
+            description="Generate rekap bulanan dulu, atau perpanjang ke tahun lain di atas."
+            ctaLabel="📋 Lihat Rekap Bulanan"
+            ctaHref="/dashboard/pajak/rekap"
+            compact
+          />
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 720 }}>
             <thead>
@@ -218,14 +224,6 @@ export default function PajakSPTClient({
       <div className="no-print" style={{ marginTop: 16 }}>
         <Link href="/dashboard/pajak/rekap" style={{ color: '#3b82f6', fontSize: 13 }}>← Lihat tabel rekap lengkap</Link>
       </div>
-
-      {toast && (
-        <div className="no-print" style={{
-          position: 'fixed', bottom: 24, right: 24,
-          background: toast.kind === 'ok' ? '#22c55e' : '#ef4444',
-          color: '#fff', padding: '12px 20px', borderRadius: 10, fontWeight: 600, fontSize: 14,
-        }}>{toast.msg}</div>
-      )}
 
       {/* Print-only CSS */}
       <style>{`

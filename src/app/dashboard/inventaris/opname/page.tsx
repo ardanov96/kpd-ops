@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActiveOutlet } from '@/lib/supabase/outlet'
 import InventarisOpnameClient from '@/components/dashboard/InventarisOpnameClient'
 
 export const dynamic = 'force-dynamic'
@@ -11,13 +12,8 @@ export default async function OpnamePage({
   const supabase = createAdminClient()
   const params = await searchParams
 
-  // Ambil outlet (hardcoded)
-  const { data: outlet } = await supabase
-    .from('outlets')
-    .select('id, kode, nama')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .single()
+  // ✅ Pakai helper (Fix #2)
+  const outlet = await getActiveOutlet(supabase)
 
   if (!outlet) {
     return (

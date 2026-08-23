@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { TipeTransaksiKeuangan, MetodeBayar, KategoriAkun, RecurringTransaction } from '@/types'
 import EmptyState from './EmptyState'
+import { useConfirm } from './ConfirmDialog'
+import { useToast } from './Toast'
 
 type FormState = {
   nama_template: string
@@ -36,12 +38,8 @@ export default function AkuntingRecurringClient({
     aktif: true,
   })
   const [busy, setBusy] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
-
-  function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
-    setToast({ msg, kind })
-    setTimeout(() => setToast(null), 2500)
-  }
+  const { showToast } = useToast()
+  const { confirm: confirmDialog, ConfirmNode } = useConfirm()
 
   function openAdd() {
     setEditId(null)
@@ -106,7 +104,13 @@ export default function AkuntingRecurringClient({
   }
 
   async function hapus(id: string) {
-    if (!confirm('Hapus template recurring ini?')) return
+    const ok = await confirmDialog({
+      title: 'Hapus template recurring ini?',
+      description: 'Template akan dihapus permanen. Transaksi yang sudah ter-generate tidak ikut terhapus.',
+      confirmLabel: '🗑️ Hapus',
+      variant: 'danger',
+    })
+    if (!ok) return
     setBusy(true)
     try {
       const res = await fetch(`/api/akunting/recurring/${id}`, { method: 'DELETE' })
@@ -142,7 +146,13 @@ export default function AkuntingRecurringClient({
   }
 
   async function triggerNow() {
-    if (!confirm('Jalankan recurring sekarang? Akan generate transaksi untuk semua template aktif hari ini.')) return
+    const ok = await confirmDialog({
+      title: 'Jalankan recurring sekarang?',
+      description: 'Akan generate transaksi untuk semua template aktif hari ini. Idempotent — tidak duplicate jika sudah pernah jalan.',
+      confirmLabel: '▶️ Jalankan',
+      variant: 'warning',
+    })
+    if (!ok) return
     setBusy(true)
     try {
       const res = await fetch('/api/cron/run-recurring', { method: 'POST' })
@@ -293,6 +303,16 @@ export default function AkuntingRecurringClient({
               <Field label="Tanggal Setiap Bulan (1-31) *">
                 <input type="number" min="1" max="31" value={form.tanggal_setiap_bulan}
                   onChange={(e) => setForm({ ...form, tanggal_setiap_bulan: Number(e.target.value) })} style={input()} />
+                {form.tanggal_setiap_bulan >= 29 && (
+                  <div style={{
+                    fontSize: 11, color: '#f59e0b', marginTop: 6, padding: '6px 10px',
+                    background: '#f59e0b15', borderRadius: 6, border: '1px solid #f59e0b40',
+                  }}>
+                    ⚠️ <strong>Catatan:</strong> Tanggal {form.tanggal_setiap_bulan} tidak ada di setiap bulan.
+                    Untuk bulan Feb (28/29 hari), transaksi akan di-generate pada tanggal terakhir bulan.
+                    Lihat <code>migration 008_recurring_lastday.sql</code> untuk detail.
+                  </div>
+                )}
               </Field>
             </div>
 
@@ -340,16 +360,8 @@ export default function AkuntingRecurringClient({
         </div>
       )}
 
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24,
-          background: toast.kind === 'ok' ? '#22c55e' : '#ef4444',
-          color: '#fff', padding: '12px 20px', borderRadius: 10,
-          fontWeight: 600, fontSize: 14,
-        }}>
-          {toast.msg}
-        </div>
-      )}
+      {/* Toast & ConfirmNode sudah di-mount di <ClientProviders> di root layout */}
+      {ConfirmNode}
     </div>
   )
 }

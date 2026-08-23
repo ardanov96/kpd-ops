@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { BUCKET_NOTA, deleteFile, parseStoragePath } from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
 
 type Params = { params: Promise<{ id: string }> }
 
 /**
- * DELETE: hapus transaksi (hanya yang sumber='MANUAL' yang boleh dihapus owner)
+ * DELETE: hapus transaksi (hanya yang sumber='MANUAL' yang boleh dihapus owner).
+ *
+ * Jika transaksi punya lampiran (lampiran_url), file di Storage juga dihapus
+ * agar tidak ada orphan file di bucket.
  */
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const supabase = createAdminClient()
   const { id } = await params
 
-  // Cek apakah transaksi ada & sumber-nya
+  // 1. Ambil data transaksi (cek sumber + lampiran)
   const { data: existing } = await supabase
     .from('transaksi_keuangan')
-    .select('id, sumber')
+    .select('id, sumber, lampiran_url')
     .eq('id', id)
     .single()
 
@@ -27,12 +31,24 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     }, { status: 400 })
   }
 
+  // 2. Hapus transaksi di DB
   const { error } = await supabase
     .from('transaksi_keuangan')
     .delete()
     .eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // 3. Cleanup lampiran di Storage (best-effort, jangan gagalkan response kalau gagal)
+  if (existing.lampiran_url) {
+    try {
+      const path = parseStoragePath(existing.lampiran_url, BUCKET_NOTA)
+      if (path) await deleteFile(BUCKET_NOTA, path)
+    } catch (e) {
+      console.warn(`[delete-transaksi] Gagal hapus lampiran ${existing.lampiran_url}:`, e)
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }
 

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { useToast } from './Toast'
 import Link from 'next/link'
 
 function formatNPWP(raw: string | null | undefined): string {
@@ -24,12 +25,7 @@ export default function PajakPengaturanClient({
   const [formSpt, setFormSpt] = useState<string>(config?.form_spt || '1770S3')
   const [omzetTahunan, setOmzetTahunan] = useState<number>(Number(config?.omzet_tahunan) || 0)
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
-
-  function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
-    setToast({ msg, kind })
-    setTimeout(() => setToast(null), 3500)
-  }
+  const { showToast } = useToast()
 
   // Auto-format NPWP saat user mengetik
   function onNpwpChange(raw: string) {
@@ -161,17 +157,6 @@ export default function PajakPengaturanClient({
               Threshold PKP: Rp 4,8 M.
             </div>
           </div>
-
-          {toast && (
-            <div style={{
-              background: toast.kind === 'ok' ? '#22c55e20' : '#ef444420',
-              border: `1px solid ${toast.kind === 'ok' ? '#22c55e40' : '#ef444440'}`,
-              borderRadius: 8, padding: '10px 14px', fontSize: 13,
-              color: toast.kind === 'ok' ? '#22c55e' : '#ef4444',
-            }}>
-              {toast.kind === 'ok' ? '✅' : '⚠️'} {toast.msg}
-            </div>
-          )}
 
           <button onClick={save} disabled={saving} style={{
             background: 'linear-gradient(135deg, #f97316, #ef4444)', border: 'none',

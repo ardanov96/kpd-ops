@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActiveOutlet } from '@/lib/supabase/outlet'
 import { exportToXlsxBuffer, type XlsxSheet } from '@/lib/export/xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -38,12 +39,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'periode harus YYYY-MM' }, { status: 400 })
     }
 
-    // Ambil outlet (kalau tidak dipassing)
-    let outletQuery = supabase.from('outlets').select('id, kode, nama').order('created_at', { ascending: true }).limit(1)
-    const { data: outlets } = await outletQuery
+    // ✅ Pakai helper (Fix #2): outlet_id dari profile user, fallback outlet paling lama
     let outletId = outletIdParam
-    if (!outletId && outlets && outlets[0]) {
-      outletId = outlets[0].id
+    if (!outletId) {
+      const outlet = await getActiveOutlet(supabase)
+      outletId = outlet?.id || null
     }
     if (!outletId) {
       return NextResponse.json({ error: 'Outlet tidak ditemukan' }, { status: 404 })

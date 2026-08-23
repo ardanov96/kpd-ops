@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { Opname } from '@/types'
+import { useToast } from './Toast'
 
 const fmtFull = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
@@ -38,16 +39,11 @@ export default function InventarisOpnameClient({
   const searchParams = useSearchParams()
 
   const [busy, setBusy] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
+  const { showToast } = useToast()
   const [catatan, setCatatan] = useState((existingOpname as any)?.catatan || '')
   const [tanggalOpname, setTanggalOpname] = useState(
     (existingOpname as any)?.tanggal_opname || new Date().toISOString().slice(0, 10)
   )
-
-  function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
-    setToast({ msg, kind })
-    setTimeout(() => setToast(null), 2500)
-  }
 
   // Build initial rows dari existing opname (jika ada) atau dari stokList
   const [rows, setRows] = useState<OpnameRow[]>(() => {
@@ -341,18 +337,7 @@ export default function InventarisOpnameClient({
         </div>
       )}
 
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24,
-          background: toast.kind === 'ok' ? '#22c55e' : '#ef4444',
-          color: '#fff', padding: '12px 20px', borderRadius: 10,
-          fontWeight: 600, fontSize: 14, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          zIndex: 1000,
-        }}>
-          {toast.msg}
-        </div>
-      )}
+      {/* Toast sudah di-mount di <ClientProviders> di root layout */}
     </div>
   )
 }

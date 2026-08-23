@@ -276,6 +276,33 @@ export async function checkBucketExists(bucket: BucketType): Promise<boolean> {
 }
 
 /**
+ * Parse path dari URL storage (signed URL atau public URL) — ambil path
+ * relatif di dalam bucket.
+ *
+ * Signed URL format: /storage/v1/object/sign/{bucket}/{path}?token=...
+ * Public URL format: /storage/v1/object/public/{bucket}/{path}
+ *
+ * Kalau input sudah path mentah (mis. dari DB yang simpan path), return apa adanya.
+ */
+export function parseStoragePath(urlOrPath: string, bucket: BucketType): string | null {
+  if (!urlOrPath) return null
+  // Kalau sudah path relatif (tidak ada http/storage prefix), return apa adanya
+  if (!urlOrPath.startsWith('http') && !urlOrPath.startsWith('/storage/')) {
+    return urlOrPath
+  }
+  // Extract path setelah /bucket/
+  const marker = `/storage/v1/object/${bucket}/`
+  const idx = urlOrPath.indexOf(marker)
+  if (idx < 0) return null
+  let path = urlOrPath.slice(idx + marker.length)
+  // Strip query string
+  path = path.split('?')[0]
+  // Strip leading slash
+  if (path.startsWith('/')) path = path.slice(1)
+  return path || null
+}
+
+/**
  * List files di bucket (untuk debug / admin).
  * Limit default 100, prefix opsional untuk filter.
  */

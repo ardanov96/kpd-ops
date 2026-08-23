@@ -27,6 +27,77 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--bg-muted); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #2d3748; }
 
+/* ============================================================
+   MOBILE RESPONSIVE — Sprint 5 Polish
+   ============================================================ */
+
+/* Sidebar slide-in animation untuk mobile */
+@keyframes sidebarSlideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+/* Table wrapper — horizontal scroll di mobile */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Sidebar state management via data attribute */
+[data-sidebar-open="false"] aside,
+[data-is-mobile="true"] aside {
+  /* Default: desktop layout, sidebar di kiri */
+}
+@media (max-width: 767px) {
+  [data-is-mobile="true"][data-sidebar-open="true"] aside {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 95;
+    transform: translateX(0);
+    animation: sidebarSlideIn 0.2s ease-out;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  }
+  [data-is-mobile="true"][data-sidebar-open="false"] aside {
+    display: none;
+  }
+  /* Tambah padding-left di main content untuk mobile agar konten tidak tertutup hamburger */
+  [data-is-mobile="true"] main {
+    padding-top: 60px;
+    width: 100%;
+  }
+}
+
+/* Responsive: form grid stack di mobile */
+@media (max-width: 767px) {
+  .form-grid-2col {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  /* Card & KPI padding mengecil */
+  .kpi-card {
+    padding: 12px !important;
+  }
+  /* Heading mengecil */
+  h1 { font-size: 18px !important; }
+  h2 { font-size: 15px !important; }
+  /* Table font mengecil untuk muat */
+  table { font-size: 12px !important; }
+  th, td {
+    padding: 8px !important;
+  }
+}
+
+/* Tablet breakpoint */
+@media (min-width: 768px) and (max-width: 1023px) {
+  aside {
+    width: 200px !important;
+  }
+}
+
+
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);

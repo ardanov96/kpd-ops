@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import Link from 'next/link'
+import { useToast } from './Toast'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(Number(n || 0)).toLocaleString('id-ID') + ',-'
@@ -70,12 +71,7 @@ export default function PajakClient({
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
-
-  function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
-    setToast({ msg, kind })
-    setTimeout(() => setToast(null), 3500)
-  }
+  const { showToast } = useToast()
 
   async function generateBulanIni() {
     setBusy(true)
@@ -326,15 +322,6 @@ export default function PajakClient({
         )}
       </div>
 
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24,
-          background: toast.kind === 'ok' ? '#22c55e' : '#ef4444',
-          color: '#fff', padding: '12px 20px', borderRadius: 10, fontWeight: 600, fontSize: 14,
-        }}>
-          {toast.msg}
-        </div>
-      )}
     </div>
   )
 }

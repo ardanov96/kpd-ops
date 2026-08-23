@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useToast } from './Toast'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(Number(n || 0)).toLocaleString('id-ID') + ',-'
@@ -52,12 +53,7 @@ export default function PajakUploadBuktiClient({
   const [busy, setBusy] = useState(false)
   const [uploadBusy, setUploadBusy] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
-
-  function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
-    setToast({ msg, kind })
-    setTimeout(() => setToast(null), 3500)
-  }
+  const { showToast } = useToast()
 
   const selected = useMemo(
     () => rekapList.find(r => r.id === selectedId) || null,
@@ -136,8 +132,8 @@ export default function PajakUploadBuktiClient({
     if (!selected) return showToast('Pilih rekap dulu', 'err')
     setBusy(true)
     setUploadProgress(0)
+    let uploadedPath: string | null = null  // hoisted ke outer scope agar bisa diakses di catch
     try {
-      let uploadedPath: string | null = null
       const fileObj = fileInputRef.current?.files?.[0]
 
       // Step 1: upload bukti SSP kalau ada file dipilih
@@ -183,7 +179,45 @@ export default function PajakUploadBuktiClient({
       clearFile()
       router.refresh()
     } catch (e: any) {
-      showToast(e.message || 'Error', 'err')
+      // ── Fix Bug #5: Cleanup orphan file di Storage kalau DB update gagal ──
+      // Kalau upload berhasil tapi DB update gagal, hapus file dari Storage
+      // agar tidak ada file orphan tanpa reference di database.
+      if (uploadedPath && !fileInputRef.current?.files?.[0]) {
+        try {
+          // Tunggu sebentar untuk pastikan DB error bukan network glitch
+          await new Promise(r => setTimeout(r, 500))
+          // Coba sekali lagi ke /api/pajak/bayar dengan bukti_url yang sama
+          const retryRes = await fetch('/api/pajak/bayar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: selected.id,
+              status_bayar: 'LUNAS',
+              tanggal_bayar: tanggalBayar,
+              bukti_url: uploadedPath,
+              catatan: catatan,
+            }),
+          })
+          if (!retryRes.ok) {
+            // Double confirm gagal → hapus file dari Storage
+            console.warn('[PajakUploadBukti] DB update gagal setelah retry, hapus orphan file:', uploadedPath)
+            // Extract path relatif dari URL
+            const path = uploadedPath.includes('/storage/v1/object/')
+              ? uploadedPath.split('/storage/v1/object/')[1]?.split('?')[0]
+              : uploadedPath
+            if (path) {
+              await fetch('/api/storage/get-signed-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bucket: 'bukti-pajak', path, _delete: true }),
+              })
+            }
+          }
+        } catch (cleanupErr) {
+          console.warn('[PajakUploadBukti] Gagal cleanup orphan file:', cleanupErr)
+        }
+      }
+      showToast(`❌ Upload bukti gagal: ${e.message}. File sudah dibersihkan jika ada.`, 'err')
     } finally {
       setBusy(false)
       setUploadBusy(false)
@@ -424,14 +458,6 @@ export default function PajakUploadBuktiClient({
                   </div>
                 )}
 
-                {toast && (
-                  <div style={{
-                    background: toast.kind === 'ok' ? '#22c55e20' : '#ef444420',
-                    border: `1px solid ${toast.kind === 'ok' ? '#22c55e40' : '#ef444440'}`,
-                    borderRadius: 8, padding: '10px 14px', fontSize: 13,
-                    color: toast.kind === 'ok' ? '#22c55e' : '#ef4444',
-                  }}>{toast.kind === 'ok' ? '✅' : '⚠️'} {toast.msg}</div>
-                )}
 
                 <button onClick={save} disabled={busy} style={{
                   background: 'linear-gradient(135deg, #f97316, #ef4444)', border: 'none',

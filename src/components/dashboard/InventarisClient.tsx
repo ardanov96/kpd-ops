@@ -3,6 +3,8 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import type { StokAktual, KategoriInventaris } from '@/types'
+import { useConfirm } from './ConfirmDialog'
+import { useToast } from './Toast'
 
 const fmt = (n: number) =>
   n >= 1_000_000 ? `Rp ${(n / 1_000_000).toFixed(1)}jt`
@@ -68,12 +70,8 @@ export default function InventarisClient({
   })
 
   const [busy, setBusy] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
-
-  function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
-    setToast({ msg, kind })
-    setTimeout(() => setToast(null), 2500)
-  }
+  const { showToast } = useToast()
+  const { confirm: confirmDialog, ConfirmNode } = useConfirm()
 
   // Filtered list
   const filtered = useMemo(() => {
@@ -146,7 +144,13 @@ export default function InventarisClient({
   }
 
   async function hapusBarang(id: string, nama: string) {
-    if (!confirm(`Hapus barang "${nama}"? Data movement terkait tetap ada.`)) return
+    const ok = await confirmDialog({
+      title: `Hapus barang "${nama}"?`,
+      description: 'Data movement stok terkait tetap ada untuk audit. Barang akan dinonaktifkan (soft-delete).',
+      confirmLabel: '🗑️ Hapus',
+      variant: 'danger',
+    })
+    if (!ok) return
     setBusy(true)
     try {
       const res = await fetch(`/api/inventaris/barang/${id}`, { method: 'DELETE' })
@@ -458,18 +462,8 @@ export default function InventarisClient({
         </Modal>
       )}
 
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24,
-          background: toast.kind === 'ok' ? '#22c55e' : '#ef4444',
-          color: '#fff', padding: '12px 20px', borderRadius: 10,
-          fontWeight: 600, fontSize: 14, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          zIndex: 1000,
-        }}>
-          {toast.msg}
-        </div>
-      )}
+      {/* Toast & ConfirmNode sudah di-mount di <ClientProviders> di root layout */}
+      {ConfirmNode}
     </div>
   )
 }

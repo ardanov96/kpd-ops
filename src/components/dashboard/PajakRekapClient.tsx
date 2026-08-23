@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import Link from 'next/link'
 import ViewFileButton from './ViewFileButton'
+import { useToast } from './Toast'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(Number(n || 0)).toLocaleString('id-ID') + ',-'
@@ -37,12 +38,7 @@ export default function PajakRekapClient({
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
-  const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
-
-  function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
-    setToast({ msg, kind })
-    setTimeout(() => setToast(null), 3500)
-  }
+  const { showToast } = useToast()
 
   function setFilter(key: 'tahun' | 'status', value: string) {
     const sp = new URLSearchParams()
@@ -201,13 +197,6 @@ export default function PajakRekapClient({
         Upload bukti SSP ada di halaman <Link href="/dashboard/pajak/upload-bukti" style={{ color: '#3b82f6' }}>Upload Bukti</Link>.
       </div>
 
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24,
-          background: toast.kind === 'ok' ? '#22c55e' : '#ef4444',
-          color: '#fff', padding: '12px 20px', borderRadius: 10, fontWeight: 600, fontSize: 14,
-        }}>{toast.msg}</div>
-      )}
     </div>
   )
 }

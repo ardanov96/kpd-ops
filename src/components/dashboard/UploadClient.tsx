@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useConfirm } from './ConfirmDialog'
 
 type Ekspedisi = {
   id: string; nama: string; kode: string
@@ -49,6 +50,7 @@ export default function UploadClient({ logs }: { logs: any[] }) {
   const [formError, setFormError] = useState('')
 
   const router = useRouter()
+  const { confirm: confirmDialog, ConfirmNode } = useConfirm()
 
   // ✅ Computed JNE detection
   const selectedEkspedisi = ekspedisiList.find(e => e.id === kurirId)
@@ -117,7 +119,13 @@ export default function UploadClient({ logs }: { logs: any[] }) {
   }
 
   async function deleteEkspedisi(id: string, nama: string) {
-    if (!confirm(`Nonaktifkan ekspedisi "${nama}"?`)) return
+    const ok = await confirmDialog({
+      title: `Nonaktifkan ekspedisi "${nama}"?`,
+      description: 'Ekspedisi akan dinonaktifkan (soft-delete) dan tidak muncul di pilihan upload.',
+      confirmLabel: 'Nonaktifkan',
+      variant: 'warning',
+    })
+    if (!ok) return
     await fetch(`/api/ekspedisi/${id}`, { method: 'DELETE' })
     await fetchEkspedisi()
     if (kurirId === id) setKurirId('')
@@ -594,6 +602,7 @@ export default function UploadClient({ logs }: { logs: any[] }) {
           </div>
         </>
       )}
+      {ConfirmNode}
     </div>
   )
 }
