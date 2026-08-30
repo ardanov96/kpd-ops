@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
+import { query } from '@/lib/db'
 import { requireOwner, isAuthError } from '@/lib/api/auth'
 import { apiBadRequest, apiError, apiOk } from '@/lib/api/response'
 
 export const dynamic = 'force-dynamic'
 
-// POST: tutup buku & lock periode (idempotent — bisa re-run untuk hitung ulang) (owner only)
 export async function POST(req: NextRequest) {
   const guard = await requireOwner(req)
   if (isAuthError(guard)) return guard
@@ -24,37 +23,28 @@ export async function POST(req: NextRequest) {
     return apiBadRequest('periode harus YYYY-MM')
   }
 
-  // Defense-in-depth
   if (profile.role !== 'owner' && profile.outlet_id !== outlet_id) {
     return NextResponse.json({ error: 'Akses ditolak ke outlet ini' }, { status: 403 })
   }
 
-  const admin = createAdminClient()
+  try {
+    await query('SELECT fn_closing_periode($1, $2, $3)', [outlet_id, periode, profile.id])
 
-  // Panggil function fn_closing_periode (idempotent) — Sprint 6: pass profile.id as closed_by
-  const { error: fnErr } = await admin.rpc('fn_closing_periode', {
-    p_outlet_id: outlet_id,
-    p_periode: periode,
-    p_closed_by: profile.id,
-  })
+    const res = await query(
+      'SELECT * FROM periode_closing WHERE outlet_id = $1 AND periode = $2 LIMIT 1',
+      [outlet_id, periode]
+    )
 
-  if (fnErr) return apiError(fnErr, 500, '[POST closing]', 'Gagal menutup periode')
+    const closing = res.rows[0]
 
-  // Ambil hasil closing
-  const { data: closing, error: errCl } = await admin
-    .from('periode_closing')
-    .select('*')
-    .eq('outlet_id', outlet_id)
-    .eq('periode', periode)
-    .single()
-
-  if (errCl) return apiError(errCl, 500, '[POST closing]', 'Gagal memuat hasil closing')
-
-  return apiOk({
-    ok: true,
-    closing,
-    laba: closing?.laba,
-    total_income: closing?.total_income,
-    total_expense: closing?.total_expense,
-  })
+    return apiOk({
+      ok: true,
+      closing,
+      laba: closing?.laba,
+      total_income: closing?.total_income,
+      total_expense: closing?.total_expense,
+    })
+  } catch (error: any) {
+    return apiError(error, 500, '[POST closing]', 'Gagal menutup periode')
+  }
 }

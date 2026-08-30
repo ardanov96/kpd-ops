@@ -1,14 +1,11 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import { getActiveOutlet } from '@/lib/supabase/outlet'
+import { query } from '@/lib/db'
+import { getActiveOutlet } from '@/lib/db/outlet'
 import AkuntingRecurringClient from '@/components/dashboard/AkuntingRecurringClient'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AkuntingRecurringPage() {
-  const supabase = createAdminClient()
-
-  // ✅ Pakai helper (Fix #2)
-  const outlet = await getActiveOutlet(supabase)
+  const outlet = await getActiveOutlet()
 
   if (!outlet) {
     return (
@@ -18,27 +15,33 @@ export default async function AkuntingRecurringPage() {
     )
   }
 
-  // Ambil kategori akun (expense + income)
-  const { data: kategoriList } = await supabase
-    .from('kategori_akun')
-    .select('*')
-    .in('tipe', ['INCOME', 'EXPENSE'])
-    .order('tipe')
-    .order('urutan')
+  let kategoriList: any[] = []
+  let recurringList: any[] = []
 
-  // Ambil template recurring untuk outlet ini
-  const { data: recurringList } = await supabase
-    .from('recurring_transactions')
-    .select('*, kategori:kategori_akun(kode, nama, tipe)')
-    .eq('outlet_id', outlet.id)
-    .order('aktif', { ascending: false })
-    .order('tanggal_setiap_bulan')
+  try {
+    const katRes = await query(
+      "SELECT * FROM kategori_akun WHERE tipe IN ('INCOME', 'EXPENSE') ORDER BY tipe ASC, urutan ASC"
+    )
+    kategoriList = katRes.rows
+
+    const recRes = await query(`
+      SELECT rt.*,
+        json_build_object('kode', k.kode, 'nama', k.nama, 'tipe', k.tipe) as kategori
+      FROM recurring_transactions rt
+      LEFT JOIN kategori_akun k ON k.id = rt.kategori_id
+      WHERE rt.outlet_id = $1
+      ORDER BY rt.aktif DESC, rt.tanggal_setiap_bulan ASC
+    `, [outlet.id])
+    recurringList = recRes.rows
+  } catch (e) {
+    console.error('Error fetching recurring page data:', e)
+  }
 
   return (
     <AkuntingRecurringClient
       outlet={outlet}
-      kategoriList={kategoriList || []}
-      recurringList={recurringList || []}
+      kategoriList={kategoriList}
+      recurringList={recurringList}
     />
   )
 }

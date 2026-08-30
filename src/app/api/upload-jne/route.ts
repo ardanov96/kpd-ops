@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
+import { query } from '@/lib/db'
 import { parseJnePdf } from '@/lib/parsers/jnePdfParser'
 
 export async function POST(req: NextRequest) {
@@ -13,13 +13,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'File dan ekspedisi wajib diisi' }, { status: 400 })
     }
 
-    const supabase = createAdminClient()
-
-    const { data: kurirData, error: kurirErr } = await supabase
-      .from('kurir').select('id, kode').eq('id', kurirId).single()
-    if (kurirErr || !kurirData) {
+    const kurirRes = await query('SELECT id, kode FROM kurir WHERE id = $1 LIMIT 1', [kurirId])
+    if (kurirRes.rows.length === 0) {
       return NextResponse.json({ error: 'Ekspedisi tidak ditemukan' }, { status: 400 })
     }
+    const kurirData = kurirRes.rows[0]
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const { rows, totalRows, errors, periode: periodeDetected } = await parseJnePdf(buffer)
@@ -33,54 +31,60 @@ export async function POST(req: NextRequest) {
 
     const periode = periodeManual || periodeDetected || null
 
-    // Cek duplikat
     const nomorPlList = rows.map(r => r.nomor_pl)
-    const { data: existing } = await supabase
-      .from('jne_packing_list')
-      .select('nomor_pl')
-      .eq('kurir_id', kurirData.id)
-      .in('nomor_pl', nomorPlList)
+    let duplikatList: { pl: string; periode: string }[] = []
 
-    const duplikatSet = new Set(existing?.map(e => e.nomor_pl) || [])
-    const duplikatList = [...duplikatSet].map(pl => ({ pl, periode: periode || '—' }))
+    if (nomorPlList.length > 0) {
+      const existingRes = await query(
+        'SELECT nomor_pl FROM jne_packing_list WHERE kurir_id = $1 AND nomor_pl = ANY($2)',
+        [kurirData.id, nomorPlList]
+      )
+      const duplikatSet = new Set(existingRes.rows.map(e => e.nomor_pl))
+      duplikatList = [...duplikatSet].map(pl => ({ pl, periode: periode || '—' }))
+    }
 
-    const insertData = rows.map(row => ({
-      kurir_id: kurirData.id,
-      nomor_pl: row.nomor_pl,
-      tanggal: row.tanggal,
-      amount: row.amount,
-      publish_rate: row.publish_rate,
-      cnote_count: row.cnote_count,
-      insurance: row.insurance,
-      vat_amount: row.vat_amount,
-      discount: row.discount,
-      disc_others: row.disc_others,
-      total_net: row.total_net,
-      coly: row.coly,
-      weight: row.weight,
-      date_paid: row.date_paid,
-      outstanding: row.outstanding,
-      periode,
-    }))
+    let successRows = 0
+    for (const row of rows) {
+      try {
+        await query(
+          `INSERT INTO jne_packing_list (
+            kurir_id, nomor_pl, tanggal, amount, publish_rate, cnote_count, insurance,
+            vat_amount, discount, disc_others, total_net, coly, weight, date_paid, outstanding, periode
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          ON CONFLICT (kurir_id, nomor_pl) DO UPDATE SET
+            tanggal = EXCLUDED.tanggal,
+            amount = EXCLUDED.amount,
+            publish_rate = EXCLUDED.publish_rate,
+            cnote_count = EXCLUDED.cnote_count,
+            insurance = EXCLUDED.insurance,
+            vat_amount = EXCLUDED.vat_amount,
+            discount = EXCLUDED.discount,
+            disc_others = EXCLUDED.disc_others,
+            total_net = EXCLUDED.total_net,
+            coly = EXCLUDED.coly,
+            weight = EXCLUDED.weight,
+            date_paid = EXCLUDED.date_paid,
+            outstanding = EXCLUDED.outstanding,
+            periode = EXCLUDED.periode`,
+          [
+            kurirData.id, row.nomor_pl, row.tanggal, row.amount, row.publish_rate, row.cnote_count, row.insurance,
+            row.vat_amount, row.discount, row.disc_others, row.total_net, row.coly, row.weight, row.date_paid, row.outstanding, periode
+          ]
+        )
+        successRows++
+      } catch (e) {
+        console.error(`JNE row insert error:`, e)
+      }
+    }
 
-    const { data: inserted, error: insertErr } = await supabase
-      .from('jne_packing_list')
-      .upsert(insertData, { onConflict: 'kurir_id,nomor_pl', ignoreDuplicates: false })
-      .select('id')
-
-    if (insertErr) console.error('JNE INSERT ERROR:', JSON.stringify(insertErr))
-
-    const successRows = inserted?.length || 0
-
-    await supabase.from('upload_logs').insert({
-      kurir_id: kurirData.id,
-      filename: file.name,
-      periode,
-      total_rows: totalRows,
-      success_rows: successRows,
-      error_rows: totalRows - successRows + errors.length,
-      errors: errors.length > 0 ? errors : null,
-    })
+    await query(
+      `INSERT INTO upload_logs (kurir_id, filename, periode, total_rows, success_rows, error_rows, errors)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        kurirData.id, file.name, periode, totalRows, successRows,
+        totalRows - successRows + errors.length, errors.length > 0 ? JSON.stringify(errors) : null
+      ]
+    )
 
     return NextResponse.json({
       success: true,

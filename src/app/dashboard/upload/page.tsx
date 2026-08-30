@@ -1,13 +1,22 @@
-import { createAdminClient } from '@/lib/supabase/server'
+import { query } from '@/lib/db'
 import UploadClient from '@/components/dashboard/UploadClient'
 
 export default async function UploadPage() {
-  const supabase = createAdminClient() 
-  const { data: logs } = await supabase
-    .from('upload_logs')
-    .select('*, kurir(kode, nama)')
-    .order('created_at', { ascending: false })
-    .limit(20)
+  let logs: any[] = []
 
-  return <UploadClient logs={logs || []} />
+  try {
+    const res = await query(`
+      SELECT ul.*,
+        json_build_object('kode', k.kode, 'nama', k.nama) as kurir
+      FROM upload_logs ul
+      LEFT JOIN kurir k ON k.id = ul.kurir_id
+      ORDER BY ul.created_at DESC
+      LIMIT 20
+    `)
+    logs = res.rows
+  } catch (e) {
+    console.error('Error fetching upload logs:', e)
+  }
+
+  return <UploadClient logs={logs} />
 }

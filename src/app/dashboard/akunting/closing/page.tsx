@@ -1,5 +1,5 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import { getActiveOutlet } from '@/lib/supabase/outlet'
+import { query } from '@/lib/db'
+import { getActiveOutlet } from '@/lib/db/outlet'
 import AkuntingClosingClient from '@/components/dashboard/AkuntingClosingClient'
 
 export const dynamic = 'force-dynamic'
@@ -9,11 +9,8 @@ export default async function AkuntingClosingPage({
 }: {
   searchParams: Promise<{ periode?: string }>
 }) {
-  const supabase = createAdminClient()
   const params = await searchParams
-
-  // ✅ Pakai helper (Fix #2)
-  const outlet = await getActiveOutlet(supabase)
+  const outlet = await getActiveOutlet()
 
   if (!outlet) {
     return (
@@ -23,38 +20,38 @@ export default async function AkuntingClosingPage({
     )
   }
 
-  // Default = bulan ini; tapi tampilkan rekomendasi bulan kemarin (closing biasanya akhir bulan)
   const now = new Date()
   const currentPeriode = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  // Jika hari ini <= 5, rekomendasikan closing bulan kemarin (akhir bulan)
   const lastMonth = now.getMonth() === 0 ? 12 : now.getMonth()
   const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
   const recommendedPeriode = `${lastMonthYear}-${String(lastMonth).padStart(2, '0')}`
   const selectedPeriode = params.periode || currentPeriode
 
-  // Ambil preview laba-rugi untuk periode yang dipilih
-  const { data: lr } = await supabase
-    .from('v_laba_rugi')
-    .select('*')
-    .eq('outlet_id', outlet.id)
-    .eq('periode', selectedPeriode)
-    .maybeSingle()
+  let preview: any = null
+  let existing: any = null
+  let history: any[] = []
 
-  // Cek apakah sudah closing
-  const { data: existing } = await supabase
-    .from('periode_closing')
-    .select('*')
-    .eq('outlet_id', outlet.id)
-    .eq('periode', selectedPeriode)
-    .maybeSingle()
+  try {
+    const lrRes = await query(
+      'SELECT * FROM v_laba_rugi WHERE outlet_id = $1 AND periode = $2 LIMIT 1',
+      [outlet.id, selectedPeriode]
+    )
+    preview = lrRes.rows[0] || null
 
-  // History closing (12 terakhir)
-  const { data: history } = await supabase
-    .from('periode_closing')
-    .select('*')
-    .eq('outlet_id', outlet.id)
-    .order('periode', { ascending: false })
-    .limit(12)
+    const exRes = await query(
+      'SELECT * FROM periode_closing WHERE outlet_id = $1 AND periode = $2 LIMIT 1',
+      [outlet.id, selectedPeriode]
+    )
+    existing = exRes.rows[0] || null
+
+    const histRes = await query(
+      'SELECT * FROM periode_closing WHERE outlet_id = $1 ORDER BY periode DESC LIMIT 12',
+      [outlet.id]
+    )
+    history = histRes.rows
+  } catch (e) {
+    console.error('Error fetching closing page data:', e)
+  }
 
   return (
     <AkuntingClosingClient
@@ -62,9 +59,9 @@ export default async function AkuntingClosingPage({
       selectedPeriode={selectedPeriode}
       recommendedPeriode={recommendedPeriode}
       currentPeriode={currentPeriode}
-      preview={lr || { total_income: 0, total_expense: 0, laba_kotor: 0 }}
+      preview={preview || { total_income: 0, total_expense: 0, laba_kotor: 0 }}
       existing={existing}
-      history={history || []}
+      history={history}
     />
   )
 }

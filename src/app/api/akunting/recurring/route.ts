@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
+import { query } from '@/lib/db'
 import { requireOwner, requireAuth, isAuthError } from '@/lib/api/auth'
 import { apiBadRequest, apiError, apiOk } from '@/lib/api/response'
-import { TRANSAKSI_TIPE, METODE_PEMBAYARAN } from '@/types'
+import { METODE_PEMBAYARAN } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
-// POST: tambah template recurring (owner only)
 export async function POST(req: NextRequest) {
   const guard = await requireOwner(req)
   if (isAuthError(guard)) return guard
@@ -36,43 +35,32 @@ export async function POST(req: NextRequest) {
     return apiBadRequest(`metode harus salah satu dari: ${METODE_PEMBAYARAN.join(', ')}`)
   }
 
-  // Defense-in-depth
   if (profile.role !== 'owner' && profile.outlet_id !== outlet_id) {
     return NextResponse.json({ error: 'Akses ditolak ke outlet ini' }, { status: 403 })
   }
 
-  const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('recurring_transactions')
-    .insert({
-      outlet_id,
-      nama_template: nama_template.trim(),
-      kategori_id,
-      tipe,
-      nominal: n,
-      metode: metode || null,
-      tanggal_setiap_bulan: tgl,
-      aktif: aktif !== false,
-      created_by: profile.id,
-    })
-    .select()
-    .single()
+  try {
+    const res = await query(
+      `INSERT INTO recurring_transactions (outlet_id, nama_template, kategori_id, tipe, nominal, metode, tanggal_setiap_bulan, aktif, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [outlet_id, nama_template.trim(), kategori_id, tipe, n, metode || null, tgl, aktif !== false, profile.id]
+    )
 
-  if (error) return apiError(error, 500, '[POST recurring]', 'Gagal menambah template recurring')
-  return apiOk(data, 201)
+    return apiOk(res.rows[0], 201)
+  } catch (error: any) {
+    return apiError(error, 500, '[POST recurring]', 'Gagal menambah template recurring')
+  }
 }
 
-// GET: list template per outlet (auth required, staff boleh lihat outlet sendiri)
 export async function GET(req: NextRequest) {
   const guard = await requireAuth(req)
   if (isAuthError(guard)) return guard
   const { profile } = guard
 
-  const admin = createAdminClient()
   const { searchParams } = new URL(req.url)
   const outletId = searchParams.get('outlet_id')
 
-  // Defense-in-depth
   let effectiveOutletId = outletId
   if (profile.role !== 'owner') {
     if (!profile.outlet_id) {
@@ -81,15 +69,26 @@ export async function GET(req: NextRequest) {
     effectiveOutletId = profile.outlet_id
   }
 
-  let query = admin
-    .from('recurring_transactions')
-    .select('*, kategori:kategori_akun(kode, nama)')
-    .order('aktif', { ascending: false })
-    .order('tanggal_setiap_bulan')
+  try {
+    let sql = `
+      SELECT rt.*,
+        json_build_object('kode', k.kode, 'nama', k.nama) as kategori
+      FROM recurring_transactions rt
+      LEFT JOIN kategori_akun k ON k.id = rt.kategori_id
+      WHERE 1=1
+    `
+    const params: any[] = []
 
-  if (effectiveOutletId) query = query.eq('outlet_id', effectiveOutletId)
+    if (effectiveOutletId) {
+      params.push(effectiveOutletId)
+      sql += ` AND rt.outlet_id = $${params.length}`
+    }
 
-  const { data, error } = await query
-  if (error) return apiError(error, 500, '[GET recurring]', 'Gagal memuat template recurring')
-  return apiOk(data || [])
+    sql += ' ORDER BY rt.aktif DESC, rt.tanggal_setiap_bulan ASC'
+
+    const res = await query(sql, params)
+    return apiOk(res.rows)
+  } catch (error: any) {
+    return apiError(error, 500, '[GET recurring]', 'Gagal memuat template recurring')
+  }
 }

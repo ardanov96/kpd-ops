@@ -1,23 +1,22 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import { getActiveOutlet } from '@/lib/supabase/outlet'
+import { query } from '@/lib/db'
+import { getActiveOutlet } from '@/lib/db/outlet'
 import { redirect } from 'next/navigation'
 import PajakPengaturanClient from '@/components/dashboard/PajakPengaturanClient'
 
 export const dynamic = 'force-dynamic'
 
 export default async function PajakPengaturanPage() {
-  const supabase = createAdminClient()
-
-  // ✅ Pakai helper (Fix #2)
-  const outlet = await getActiveOutlet(supabase)
+  const outlet = await getActiveOutlet()
 
   if (!outlet) redirect('/dashboard')
 
-  const { data: config } = await supabase
-    .from('pajak_config')
-    .select('*')
-    .eq('outlet_id', outlet.id)
-    .maybeSingle()
+  let config: any = null
+  try {
+    const res = await query('SELECT * FROM pajak_config WHERE outlet_id = $1 LIMIT 1', [outlet.id])
+    config = res.rows[0] || null
+  } catch (e) {
+    console.error('Error fetching pajak config page data:', e)
+  }
 
-  return <PajakPengaturanClient outlet={outlet} config={config || null} />
+  return <PajakPengaturanClient outlet={outlet} config={config} />
 }

@@ -160,7 +160,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<BackupResult>
   }
 
   // 2. Validate env
-  const dbUrl = process.env.SUPABASE_DB_URL
+  const dbUrl = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL || process.env.SUPABASE_DB_URL
   const bucket = process.env.BACKUP_S3_BUCKET
   const region = process.env.BACKUP_S3_REGION
   const accessKeyId = process.env.BACKUP_S3_ACCESS_KEY_ID
@@ -168,7 +168,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<BackupResult>
 
   if (!dbUrl || !bucket || !region || !accessKeyId || !secretAccessKey) {
     return NextResponse.json(
-      { ok: false, error: 'Missing required env vars (SUPABASE_DB_URL, BACKUP_S3_*)' },
+      { ok: false, error: 'Missing required env vars (DATABASE_URL, BACKUP_S3_*)' },
       { status: 500 }
     )
   }

@@ -1,48 +1,69 @@
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { query } from '@/lib/db'
 import Sidebar from '@/components/Sidebar'
 import MobileShell from '@/components/dashboard/MobileShell'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('session_user')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*, outlets(*)')
-    .eq('id', user.id)
-    .single()
+  let user: any = null
+  let profile: any = null
 
-  // ✅ Tambah fetch kurir aktif
-  const { data: kurirAktif } = await supabase
-    .from('kurir')
-    .select('kode, nama, warna')
-    .eq('aktif', true)
-    .order('nama')
+  if (sessionCookie?.value) {
+    try {
+      profile = JSON.parse(sessionCookie.value)
+      user = { id: profile.id, email: profile.email }
+    } catch {}
+  }
 
-  // ✅ Alert: barang di bawah stok minimum (dari view v_stok_aktual)
-  const { count: inventarisAlert } = await supabase
-    .from('v_stok_aktual')
-    .select('barang_id', { count: 'exact', head: true })
-    .eq('is_below_min', true)
+  if (!profile && process.env.DATABASE_URL) {
+    try {
+      const profileRes = await query(
+        'SELECT p.*, o.kode as outlet_kode, o.nama as outlet_nama FROM profiles p LEFT JOIN outlets o ON o.id = p.outlet_id ORDER BY p.created_at ASC LIMIT 1'
+      )
+      if (profileRes.rows.length > 0) {
+        profile = profileRes.rows[0]
+        user = { id: profile.id, email: profile.email }
+      }
+    } catch (e) {
+      console.error('Error fetching profile from Postgres:', e)
+    }
+  }
 
-  // ✅ Alert: PPh Final yang harus segera dibayar (jatuh tempo <= 7 hari ATAU sudah lewat)
-  // Hanya untuk role owner (data sensitif)
-  const { count: pajakAlert } = profile?.role === 'owner'
-    ? await supabase
-        .from('v_pajak_reminder')
-        .select('id', { count: 'exact', head: true })
-        .lte('sisa_hari', 7)
-    : { count: 0 }
+  if (!profile) {
+    redirect('/login')
+  }
+
+  let kurirAktif: any[] = []
+  let inventarisAlert = 0
+  let pajakAlert = 0
+
+  if (process.env.DATABASE_URL) {
+    try {
+      const kurirRes = await query('SELECT kode, nama, warna FROM kurir ORDER BY nama ASC')
+      kurirAktif = kurirRes.rows
+
+      const invAlertRes = await query('SELECT COUNT(*)::int as count FROM v_stok_aktual WHERE is_below_min = true')
+      inventarisAlert = invAlertRes.rows[0]?.count || 0
+
+      if (profile.role === 'owner') {
+        const pajakAlertRes = await query('SELECT COUNT(*)::int as count FROM v_pajak_reminder WHERE sisa_hari <= 7')
+        pajakAlert = pajakAlertRes.rows[0]?.count || 0
+      }
+    } catch (e) {
+      console.error('Error fetching layout data from Neon:', e)
+    }
+  }
 
   return (
     <MobileShell>
       <Sidebar
         user={user}
         profile={profile}
-        kurirAktif={kurirAktif || []}
-        alertCounts={{ inventaris: inventarisAlert || 0, pajak: (pajakAlert as number) || 0 }}
+        kurirAktif={kurirAktif}
+        alertCounts={{ inventaris: inventarisAlert, pajak: pajakAlert }}
       />
       <main style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
         {children}

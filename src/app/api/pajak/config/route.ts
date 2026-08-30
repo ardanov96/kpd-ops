@@ -1,33 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
+import { NextRequest } from 'next/server'
+import { query } from '@/lib/db'
 import { requireOwner, isAuthError } from '@/lib/api/auth'
 import { apiBadRequest, apiError, apiOk } from '@/lib/api/response'
 import { FORM_SPT_OPTIONS, METODE_PPH_OPTIONS } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
-// GET: ambil pajak_config untuk outlet (owner only — data NPWP sensitif per D-006)
 export async function GET(req: NextRequest) {
   const guard = await requireOwner(req)
   if (isAuthError(guard)) return guard
 
-  const admin = createAdminClient()
   const { searchParams } = new URL(req.url)
   const outletId = searchParams.get('outlet_id')
 
   if (!outletId) return apiBadRequest('outlet_id wajib')
 
-  const { data, error } = await admin
-    .from('pajak_config')
-    .select('*')
-    .eq('outlet_id', outletId)
-    .maybeSingle()
-
-  if (error) return apiError(error, 500, '[GET pajak/config]', 'Gagal memuat config pajak')
-  return apiOk(data || null)
+  try {
+    const res = await query('SELECT * FROM pajak_config WHERE outlet_id = $1 LIMIT 1', [outletId])
+    return apiOk(res.rows[0] || null)
+  } catch (error: any) {
+    return apiError(error, 500, '[GET pajak/config]', 'Gagal memuat config pajak')
+  }
 }
 
-// POST: upsert pajak_config (owner only)
 export async function POST(req: NextRequest) {
   const guard = await requireOwner(req)
   if (isAuthError(guard)) return guard
@@ -42,7 +37,6 @@ export async function POST(req: NextRequest) {
 
   if (!outlet_id) return apiBadRequest('outlet_id wajib')
 
-  // Validasi NPWP format (15 digit)
   if (npwp !== undefined && npwp !== null && npwp !== '') {
     const cleaned = String(npwp).replace(/\D/g, '')
     if (cleaned.length !== 15) {
@@ -57,26 +51,27 @@ export async function POST(req: NextRequest) {
     return apiBadRequest(`metode_pph harus salah satu dari: ${METODE_PPH_OPTIONS.join(', ')}`)
   }
 
-  const admin = createAdminClient()
-
-  // Upsert (insert or update by outlet_id primary key)
-  const payload: Record<string, unknown> = {
-    outlet_id,
-    npwp: npwp ? String(npwp).replace(/\D/g, '') : null,
-    nama_wp: nama_wp || null,
-    metode_pph: metode_pph || 'FINAL_05',
-    pkp: pkp === true,
-    omzet_tahunan: Number(omzet_tahunan) || 0,
-    form_spt: form_spt || '1770S3',
-    updated_at: new Date().toISOString(),
+  try {
+    const cleanNpwp = npwp ? String(npwp).replace(/\D/g, '') : null
+    const res = await query(
+      `INSERT INTO pajak_config (outlet_id, npwp, nama_wp, metode_pph, pkp, omzet_tahunan, form_spt, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+       ON CONFLICT (outlet_id) DO UPDATE SET
+         npwp = EXCLUDED.npwp,
+         nama_wp = EXCLUDED.nama_wp,
+         metode_pph = EXCLUDED.metode_pph,
+         pkp = EXCLUDED.pkp,
+         omzet_tahunan = EXCLUDED.omzet_tahunan,
+         form_spt = EXCLUDED.form_spt,
+         updated_at = NOW()
+       RETURNING *`,
+      [
+        outlet_id, cleanNpwp, nama_wp || null, metode_pph || 'FINAL_05',
+        pkp === true, Number(omzet_tahunan) || 0, form_spt || '1770S3'
+      ]
+    )
+    return apiOk(res.rows[0])
+  } catch (error: any) {
+    return apiError(error, 500, '[POST pajak/config]', 'Gagal menyimpan config pajak')
   }
-
-  const { data, error } = await admin
-    .from('pajak_config')
-    .upsert(payload, { onConflict: 'outlet_id' })
-    .select()
-    .single()
-
-  if (error) return apiError(error, 500, '[POST pajak/config]', 'Gagal menyimpan config pajak')
-  return apiOk(data)
 }

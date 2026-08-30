@@ -1,5 +1,5 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import { getActiveOutlet } from '@/lib/supabase/outlet'
+import { query } from '@/lib/db'
+import { getActiveOutlet } from '@/lib/db/outlet'
 import InventarisOpnameClient from '@/components/dashboard/InventarisOpnameClient'
 
 export const dynamic = 'force-dynamic'
@@ -9,11 +9,8 @@ export default async function OpnamePage({
 }: {
   searchParams: Promise<{ periode?: string }>
 }) {
-  const supabase = createAdminClient()
   const params = await searchParams
-
-  // ✅ Pakai helper (Fix #2)
-  const outlet = await getActiveOutlet(supabase)
+  const outlet = await getActiveOutlet()
 
   if (!outlet) {
     return (
@@ -23,51 +20,54 @@ export default async function OpnamePage({
     )
   }
 
-  // Default periode = bulan ini
   const now = new Date()
   const defaultPeriode = params.periode || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
-  // Cek apakah opname untuk periode ini sudah ada
-  const { data: existingOpname } = await supabase
-    .from('opname')
-    .select('*')
-    .eq('outlet_id', outlet.id)
-    .eq('periode', defaultPeriode)
-    .maybeSingle()
-
-  // Fetch stok aktual semua barang aktif (untuk input opname)
-  const { data: stokList } = await supabase
-    .from('v_stok_aktual')
-    .select('*, kategori:kategori_inventaris(kode, nama)')
-    .eq('outlet_id', outlet.id)
-    .order('nama')
-
-  // List opname history
-  const { data: opnameHistory } = await supabase
-    .from('opname')
-    .select('*, items:opname_item(id, barang_id)')
-    .eq('outlet_id', outlet.id)
-    .order('periode', { ascending: false })
-    .limit(12)
-
-  // Kalau ada opname existing, fetch detail items
+  let existingOpname: any = null
+  let stokList: any[] = []
+  let opnameHistory: any[] = []
   let existingItems: any[] = []
-  if (existingOpname) {
-    const { data } = await supabase
-      .from('opname_item')
-      .select('*')
-      .eq('opname_id', existingOpname.id)
-    existingItems = data || []
+
+  try {
+    const opnameRes = await query(
+      'SELECT * FROM opname WHERE outlet_id = $1 AND periode = $2 LIMIT 1',
+      [outlet.id, defaultPeriode]
+    )
+    existingOpname = opnameRes.rows[0] || null
+
+    const stokRes = await query(`
+      SELECT sa.*,
+        json_build_object('kode', k.kode, 'nama', k.nama) as kategori
+      FROM v_stok_aktual sa
+      LEFT JOIN barang b ON b.id = sa.barang_id
+      LEFT JOIN kategori_inventaris k ON k.id = b.kategori_id
+      WHERE sa.outlet_id = $1
+      ORDER BY sa.nama ASC
+    `, [outlet.id])
+    stokList = stokRes.rows
+
+    const histRes = await query(
+      'SELECT * FROM opname WHERE outlet_id = $1 ORDER BY periode DESC LIMIT 12',
+      [outlet.id]
+    )
+    opnameHistory = histRes.rows
+
+    if (existingOpname) {
+      const itemsRes = await query('SELECT * FROM opname_item WHERE opname_id = $1', [existingOpname.id])
+      existingItems = itemsRes.rows
+    }
+  } catch (e) {
+    console.error('Error fetching opname page data:', e)
   }
 
   return (
     <InventarisOpnameClient
       outlet={outlet}
       periode={defaultPeriode}
-      stokList={stokList || []}
+      stokList={stokList}
       existingOpname={existingOpname}
       existingItems={existingItems}
-      opnameHistory={opnameHistory || []}
+      opnameHistory={opnameHistory}
     />
   )
 }

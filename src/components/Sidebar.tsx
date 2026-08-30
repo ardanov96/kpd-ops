@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 
 const NAV = [
   { href: '/dashboard/harian',                icon: '📅', label: 'Harian' },
@@ -19,7 +18,6 @@ const NAV = [
 
 type KurirAktif = { kode: string; nama: string; warna: string }
 type AlertCounts = { inventaris?: number; pajak?: number }
-
 export default function Sidebar({
   user, profile, kurirAktif, alertCounts,
 }: {
@@ -30,10 +28,11 @@ export default function Sidebar({
 }) {
   const pathname = usePathname()
   const router = useRouter()
-  const supabase = createClient()
 
   async function handleLogout() {
-    await supabase.auth.signOut()
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch {}
     router.push('/login')
     router.refresh()
   }

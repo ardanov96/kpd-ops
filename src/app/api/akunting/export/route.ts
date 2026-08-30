@@ -1,21 +1,6 @@
-/**
- * GET /api/akunting/export?type=laba-rugi&periode=YYYY-MM[&outlet_id=...]
- * GET /api/akunting/export?type=transaksi&periode=YYYY-MM[&outlet_id=...]
- *
- * Server-side export endpoint. Mengembalikan file xlsx langsung di-stream
- * dari Supabase. Berguna untuk export besar (chunked, tidak block browser).
- *
- * Query params:
- *   - type: 'laba-rugi' | 'neraca' | 'transaksi'
- *   - periode: 'YYYY-MM' (default: bulan ini)
- *   - outlet_id: uuid (optional, default: outlet pertama owner)
- *
- * Response: file attachment XLSX.
- */
-
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
-import { getActiveOutlet } from '@/lib/supabase/outlet'
+import { query } from '@/lib/db'
+import { getActiveOutlet } from '@/lib/db/outlet'
 import { exportToXlsxBuffer, type XlsxSheet } from '@/lib/export/xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -23,7 +8,6 @@ export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createAdminClient()
     const { searchParams } = new URL(req.url)
     const type = searchParams.get('type') || 'laba-rugi'
     const periode = searchParams.get('periode') || defaultPeriode()
@@ -39,10 +23,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'periode harus YYYY-MM' }, { status: 400 })
     }
 
-    // ✅ Pakai helper (Fix #2): outlet_id dari profile user, fallback outlet paling lama
     let outletId = outletIdParam
     if (!outletId) {
-      const outlet = await getActiveOutlet(supabase)
+      const outlet = await getActiveOutlet()
       outletId = outlet?.id || null
     }
     if (!outletId) {
@@ -57,30 +40,28 @@ export async function GET(req: NextRequest) {
     if (type === 'laba-rugi') {
       filename = `Laporan_Laba_Rugi_${periode}.xlsx`
 
-      const { data: lr } = await supabase
-        .from('v_laba_rugi')
-        .select('*')
-        .eq('outlet_id', outletId)
-        .eq('periode', periode)
-        .maybeSingle()
+      const lrRes = await query(
+        'SELECT * FROM v_laba_rugi WHERE outlet_id = $1 AND periode = $2 LIMIT 1',
+        [outletId, periode]
+      )
+      const lr = lrRes.rows[0]
 
-      const { data: breakdown } = await supabase
-        .from('v_keuangan_per_kategori')
-        .select('*')
-        .eq('outlet_id', outletId)
-        .eq('periode', periode)
-        .order('kategori_kode')
+      const bdRes = await query(
+        'SELECT * FROM v_keuangan_per_kategori WHERE outlet_id = $1 AND periode = $2 ORDER BY kategori_kode ASC',
+        [outletId, periode]
+      )
+      const breakdown = bdRes.rows
 
       const lrRows = [
         { section: 'INCOME', kode: '', nama: 'Total Income', nominal: Number(lr?.total_income || 0) },
-        ...(breakdown || []).map((b) => ({
+        ...(breakdown || []).map((b: any) => ({
           section: '',
           kode: b.kategori_kode,
           nama: b.kategori_nama,
           nominal: Number(b.nominal_income),
         })),
         { section: 'EXPENSE', kode: '', nama: 'Total Expense', nominal: Number(lr?.total_expense || 0) },
-        ...(breakdown || []).map((b) => ({
+        ...(breakdown || []).map((b: any) => ({
           section: '',
           kode: b.kategori_kode,
           nama: b.kategori_nama,
@@ -105,11 +86,11 @@ export async function GET(req: NextRequest) {
     } else if (type === 'neraca') {
       filename = `Laporan_Neraca_${periode}.xlsx`
 
-      const { data: neraca } = await supabase
-        .from('v_neraca')
-        .select('*')
-        .eq('outlet_id', outletId)
-        .maybeSingle()
+      const neracaRes = await query(
+        'SELECT * FROM v_neraca WHERE outlet_id = $1 LIMIT 1',
+        [outletId]
+      )
+      const neraca = neracaRes.rows[0]
 
       if (!neraca) {
         return NextResponse.json({ error: 'Data neraca tidak ditemukan' }, { status: 404 })
@@ -143,13 +124,16 @@ export async function GET(req: NextRequest) {
       const nextYear = Number(month) === 12 ? String(Number(year) + 1) : year
       const endDate = `${nextYear}-${nextMonth}-01`
 
-      const { data: trx } = await supabase
-        .from('transaksi_keuangan')
-        .select('*, kategori:kategori_akun(kode, nama)')
-        .eq('outlet_id', outletId)
-        .gte('tanggal', startDate)
-        .lt('tanggal', endDate)
-        .order('tanggal', { ascending: false })
+      const trxRes = await query(
+        `SELECT tk.*,
+          json_build_object('kode', k.kode, 'nama', k.nama) as kategori
+         FROM transaksi_keuangan tk
+         LEFT JOIN kategori_akun k ON k.id = tk.kategori_id
+         WHERE tk.outlet_id = $1 AND tk.tanggal >= $2 AND tk.tanggal < $3
+         ORDER BY tk.tanggal DESC`,
+        [outletId, startDate, endDate]
+      )
+      const trx = trxRes.rows
 
       sheets = [
         {

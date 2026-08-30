@@ -1,5 +1,5 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import { getActiveOutlet } from '@/lib/supabase/outlet'
+import { query } from '@/lib/db'
+import { getActiveOutlet } from '@/lib/db/outlet'
 import AkuntingExpenseForm from '@/components/dashboard/AkuntingExpenseForm'
 
 export const dynamic = 'force-dynamic'
@@ -9,11 +9,8 @@ export default async function AkuntingExpensePage({
 }: {
   searchParams: Promise<{ periode?: string; tipe?: string }>
 }) {
-  const supabase = createAdminClient()
   const params = await searchParams
-
-  // ✅ Pakai helper (Fix #2)
-  const outlet = await getActiveOutlet(supabase)
+  const outlet = await getActiveOutlet()
 
   if (!outlet) {
     return (
@@ -23,37 +20,40 @@ export default async function AkuntingExpensePage({
     )
   }
 
-  // Ambil kategori akun (expense + income + equity)
-  const { data: kategoriList } = await supabase
-    .from('kategori_akun')
-    .select('*')
-    .order('tipe')
-    .order('urutan')
-    .order('kode')
+  let kategoriList: any[] = []
+  let transaksiList: any[] = []
 
-  // Filter transaksi by query
-  let query = supabase
-    .from('transaksi_keuangan')
-    .select('*, kategori:kategori_akun(kode, nama, tipe)')
-    .eq('outlet_id', outlet.id)
-    .order('tanggal', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(100)
+  try {
+    const katRes = await query('SELECT * FROM kategori_akun ORDER BY tipe ASC, urutan ASC, kode ASC')
+    kategoriList = katRes.rows
 
-  if (params.periode) {
-    query = query.eq('periode', params.periode) as any
+    let sql = `
+      SELECT tk.*,
+        json_build_object('kode', k.kode, 'nama', k.nama, 'tipe', k.tipe) as kategori
+      FROM transaksi_keuangan tk
+      LEFT JOIN kategori_akun k ON k.id = tk.kategori_id
+      WHERE tk.outlet_id = $1
+    `
+    const sqlParams: any[] = [outlet.id]
+
+    if (params.tipe) {
+      sqlParams.push(params.tipe)
+      sql += ` AND tk.tipe = $${sqlParams.length}`
+    }
+
+    sql += ' ORDER BY tk.tanggal DESC, tk.created_at DESC LIMIT 100'
+
+    const txRes = await query(sql, sqlParams)
+    transaksiList = txRes.rows
+  } catch (e) {
+    console.error('Error fetching expense page data:', e)
   }
-  if (params.tipe) {
-    query = query.eq('tipe', params.tipe) as any
-  }
-
-  const { data: transaksiList } = await query
 
   return (
     <AkuntingExpenseForm
       outlet={outlet}
-      kategoriList={kategoriList || []}
-      transaksiList={transaksiList || []}
+      kategoriList={kategoriList}
+      transaksiList={transaksiList}
       filterPeriode={params.periode || ''}
       filterTipe={params.tipe || ''}
     />

@@ -1,10 +1,7 @@
-import { createAdminClient } from '@/lib/supabase/server'
+import { query } from '@/lib/db'
 import HarianClient from '@/components/dashboard/HarianClient'
 
 export default async function HarianPage() {
-  const supabase = createAdminClient()
-
-  // Ambil 30 hari terakhir
   const today = new Date()
   const since = new Date(today)
   since.setDate(today.getDate() - 30)
@@ -12,49 +9,50 @@ export default async function HarianPage() {
   const sinceStr = since.toISOString().slice(0, 10)
   const todayStr = today.toISOString().slice(0, 10)
 
-  // Data summary harian (per outlet per kurir per tanggal)
-  const { data: summary } = await supabase
-    .from('v_summary_harian')
-    .select('*')
-    .gte('tanggal', sinceStr)
-    .order('tanggal', { ascending: false })
-
-  // Data 7 hari terakhir untuk comparison chart
   const since7 = new Date(today)
   since7.setDate(today.getDate() - 7)
   const since7Str = since7.toISOString().slice(0, 10)
 
-  const { data: summary7d } = await supabase
-    .from('v_summary_harian')
-    .select('*')
-    .gte('tanggal', since7Str)
-    .order('tanggal', { ascending: false })
+  let summary: any[] = []
+  let summary7d: any[] = []
+  let recentTx: any[] = []
+  let kurirList: any[] = []
 
-  // 10 transaksi terbaru untuk recent activity
-  const { data: recentTxRaw } = await supabase
-    .from('transaksi')
-    .select('id, nomor_stt, tanggal, kota_tujuan, total_biaya, status, jenis_kiriman, kurir:kurir!kurir_id(kode, nama, warna)')
-    .order('tanggal', { ascending: false })
-    .limit(10)
+  try {
+    const sumRes = await query(
+      'SELECT * FROM v_summary_harian WHERE tanggal >= $1 ORDER BY tanggal DESC',
+      [sinceStr]
+    )
+    summary = sumRes.rows
 
-  // Normalize: Supabase bisa return kurir sebagai array atau object, kita flatten ke single object
-  const recentTx = (recentTxRaw || []).map((tx: any) => ({
-    ...tx,
-    kurir: Array.isArray(tx.kurir) ? tx.kurir[0] ?? null : tx.kurir,
-  }))
+    const sum7Res = await query(
+      'SELECT * FROM v_summary_harian WHERE tanggal >= $1 ORDER BY tanggal DESC',
+      [since7Str]
+    )
+    summary7d = sum7Res.rows
 
-  // Daftar kurir aktif (untuk filter dropdown)
-  const { data: kurirList } = await supabase
-    .from('kurir')
-    .select('kode, nama, warna')
-    .order('kode')
+    const txRes = await query(`
+      SELECT t.id, t.nomor_stt, t.tanggal, t.kota_tujuan, t.total_biaya, t.status, t.jenis_kiriman,
+        json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir
+      FROM transaksi t
+      LEFT JOIN kurir k ON k.id = t.kurir_id
+      ORDER BY t.tanggal DESC
+      LIMIT 10
+    `)
+    recentTx = txRes.rows
+
+    const kurirRes = await query('SELECT kode, nama, warna FROM kurir ORDER BY kode ASC')
+    kurirList = kurirRes.rows
+  } catch (e) {
+    console.error('Error fetching harian page data:', e)
+  }
 
   return (
     <HarianClient
-      summary={summary || []}
-      summary7d={summary7d || []}
-      recentTx={recentTx || []}
-      kurirList={kurirList || []}
+      summary={summary}
+      summary7d={summary7d}
+      recentTx={recentTx}
+      kurirList={kurirList}
       todayStr={todayStr}
     />
   )

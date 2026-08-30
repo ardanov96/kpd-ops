@@ -1,30 +1,43 @@
-import { createAdminClient } from '@/lib/supabase/server'
+import { query } from '@/lib/db'
 import OverviewClient from '@/components/dashboard/OverviewClient'
 
 export default async function DashboardPage() {
-  const supabase = createAdminClient()
+  let summary: any[] = []
+  let recentTx: any[] = []
+  let grandTotal: any[] = []
 
-  const { data: summary } = await supabase
-    .from('v_summary_bulanan')
-    .select('*')
-    .order('periode', { ascending: false })
+  if (process.env.DATABASE_URL) {
+    try {
+      const summaryRes = await query('SELECT * FROM v_summary_bulanan ORDER BY periode DESC')
+      summary = summaryRes.rows
 
-  const { data: recentTx } = await supabase
-    .from('transaksi')
-    .select('*, kurir(kode, nama, warna)') 
-    .order('tanggal', { ascending: false })
-    .limit(100) 
+      const recentTxRes = await query(`
+        SELECT t.*,
+          json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir
+        FROM transaksi t
+        LEFT JOIN kurir k ON k.id = t.kurir_id
+        ORDER BY t.tanggal DESC
+        LIMIT 100
+      `)
+      recentTx = recentTxRes.rows
 
-  // ✅ tambah kurir(kode, nama, warna) agar filter bisa berjalan
-  const { data: grandTotal } = await supabase
-  .from('transaksi')
-  .select('total_biaya, diskon_booking, diskon_asuransi, diskon_forward_rate, koli, status, kurir_id, nama_produk, komoditas, kota_tujuan, kurir(kode, nama, warna)') 
+      const grandTotalRes = await query(`
+        SELECT t.total_biaya, t.diskon_booking, t.diskon_asuransi, t.diskon_forward_rate, t.koli, t.status, t.kurir_id, t.nama_produk, t.komoditas, t.kota_tujuan,
+          json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir
+        FROM transaksi t
+        LEFT JOIN kurir k ON k.id = t.kurir_id
+      `)
+      grandTotal = grandTotalRes.rows
+    } catch (e) {
+      console.error('Error fetching dashboard page data from Neon:', e)
+    }
+  }
 
   return (
     <OverviewClient
-      summary={summary || []}
-      recentTx={recentTx || []}
-      grandTotal={grandTotal || []}
+      summary={summary}
+      recentTx={recentTx}
+      grandTotal={grandTotal}
     />
   )
 }

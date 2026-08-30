@@ -1,5 +1,5 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import { getActiveOutlet } from '@/lib/supabase/outlet'
+import { query } from '@/lib/db'
+import { getActiveOutlet } from '@/lib/db/outlet'
 import AkuntingLaporanClient from '@/components/dashboard/AkuntingLaporanClient'
 
 export const dynamic = 'force-dynamic'
@@ -9,11 +9,8 @@ export default async function LaporanLabaRugiPage({
 }: {
   searchParams: Promise<{ periode?: string }>
 }) {
-  const supabase = createAdminClient()
   const params = await searchParams
-
-  // ✅ Pakai helper (Fix #2)
-  const outlet = await getActiveOutlet(supabase)
+  const outlet = await getActiveOutlet()
 
   if (!outlet) {
     return (
@@ -27,36 +24,35 @@ export default async function LaporanLabaRugiPage({
   const currentPeriode = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const selectedPeriode = params.periode || currentPeriode
 
-  // Laba-Rugi periode ini
-  const { data: lr } = await supabase
-    .from('v_laba_rugi')
-    .select('*')
-    .eq('outlet_id', outlet.id)
-    .eq('periode', selectedPeriode)
-    .maybeSingle()
+  let lr: any = null
+  let breakdown: any[] = []
+  let cashflow: any[] = []
+  let neraca: any = null
 
-  // Breakdown per kategori
-  const { data: breakdown } = await supabase
-    .from('v_keuangan_per_kategori')
-    .select('*')
-    .eq('outlet_id', outlet.id)
-    .eq('periode', selectedPeriode)
-    .order('kategori_tipe')
-    .order('kategori_kode')
+  try {
+    const lrRes = await query(
+      'SELECT * FROM v_laba_rugi WHERE outlet_id = $1 AND periode = $2 LIMIT 1',
+      [outlet.id, selectedPeriode]
+    )
+    lr = lrRes.rows[0] || null
 
-  // Cashflow untuk periode ini
-  const { data: cashflow } = await supabase
-    .from('v_cashflow')
-    .select('*')
-    .eq('outlet_id', outlet.id)
-    .eq('periode', selectedPeriode)
+    const bdRes = await query(
+      'SELECT * FROM v_keuangan_per_kategori WHERE outlet_id = $1 AND periode = $2 ORDER BY kategori_tipe ASC, kategori_kode ASC',
+      [outlet.id, selectedPeriode]
+    )
+    breakdown = bdRes.rows
 
-  // Neraca (snapshot)
-  const { data: neraca } = await supabase
-    .from('v_neraca')
-    .select('*')
-    .eq('outlet_id', outlet.id)
-    .maybeSingle()
+    const cfRes = await query(
+      'SELECT * FROM v_cashflow WHERE outlet_id = $1 AND periode = $2',
+      [outlet.id, selectedPeriode]
+    )
+    cashflow = cfRes.rows
+
+    const nRes = await query('SELECT * FROM v_neraca WHERE outlet_id = $1 LIMIT 1', [outlet.id])
+    neraca = nRes.rows[0] || null
+  } catch (e) {
+    console.error('Error fetching laba-rugi page data:', e)
+  }
 
   return (
     <AkuntingLaporanClient
@@ -64,9 +60,9 @@ export default async function LaporanLabaRugiPage({
       selectedPeriode={selectedPeriode}
       currentPeriode={currentPeriode}
       labaRugi={lr || { total_income: 0, total_expense: 0, laba_kotor: 0 }}
-      breakdown={breakdown || []}
-      cashflow={cashflow || []}
-      neraca={neraca || null}
+      breakdown={breakdown}
+      cashflow={cashflow}
+      neraca={neraca}
     />
   )
 }

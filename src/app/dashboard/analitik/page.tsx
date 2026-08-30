@@ -1,23 +1,31 @@
-import { createAdminClient } from '@/lib/supabase/server'
+import { query } from '@/lib/db'
 import AnalitikClient from '@/components/dashboard/AnalitikClient'
 
 export default async function AnalitikPage() {
-  const supabase = createAdminClient()
+  let transaksi: any[] = []
+  let kurirList: any[] = []
 
-  const { data: transaksi } = await supabase
-    .from('transaksi')
-    .select('tanggal, status, total_biaya, diskon_booking, diskon_asuransi, diskon_forward_rate, berat_kena_biaya, kota_tujuan, nama_produk, komoditas, koli, kurir:kurir(kode, nama, warna)')
-    .order('tanggal', { ascending: true })
+  try {
+    const txRes = await query(`
+      SELECT t.tanggal, t.status, t.total_biaya, t.diskon_booking, t.diskon_asuransi, t.diskon_forward_rate,
+        t.berat_kena_biaya, t.kota_tujuan, t.nama_produk, t.komoditas, t.koli,
+        json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir
+      FROM transaksi t
+      LEFT JOIN kurir k ON k.id = t.kurir_id
+      ORDER BY t.tanggal ASC
+    `)
+    transaksi = txRes.rows
 
-  const { data: kurirList } = await supabase
-    .from('kurir')
-    .select('id, kode, nama, warna')
-    .order('nama')
+    const kurirRes = await query('SELECT id, kode, nama, warna FROM kurir ORDER BY nama ASC')
+    kurirList = kurirRes.rows
+  } catch (e) {
+    console.error('Error fetching analitik page data:', e)
+  }
 
   return (
     <AnalitikClient
-      transaksi={transaksi || []}
-      kurirList={kurirList || []}
+      transaksi={transaksi}
+      kurirList={kurirList}
     />
   )
 }

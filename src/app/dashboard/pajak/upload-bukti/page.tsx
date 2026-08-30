@@ -1,5 +1,5 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import { getActiveOutlet } from '@/lib/supabase/outlet'
+import { query } from '@/lib/db'
+import { getActiveOutlet } from '@/lib/db/outlet'
 import { redirect } from 'next/navigation'
 import PajakUploadBuktiClient from '@/components/dashboard/PajakUploadBuktiClient'
 
@@ -10,34 +10,34 @@ export default async function PajakUploadBuktiPage({
 }: {
   searchParams: Promise<{ id?: string }>
 }) {
-  const supabase = createAdminClient()
   const params = await searchParams
-
-  // ✅ Pakai helper (Fix #2)
-  const outlet = await getActiveOutlet(supabase)
+  const outlet = await getActiveOutlet()
 
   if (!outlet) redirect('/dashboard')
 
-  // List rekap yg BELUM atau yang sudah LUNAS (untuk lihat history)
-  const { data: rekapList } = await supabase
-    .from('pajak_rekap')
-    .select('*')
-    .eq('outlet_id', outlet.id)
-    .order('periode', { ascending: false })
-    .limit(36)
+  let rekapList: any[] = []
 
-  // Initial selected: yg BELUM bayar paling lama, atau sesuai ?id=
+  try {
+    const res = await query(
+      'SELECT * FROM pajak_rekap WHERE outlet_id = $1 ORDER BY periode DESC LIMIT 36',
+      [outlet.id]
+    )
+    rekapList = res.rows
+  } catch (e) {
+    console.error('Error fetching upload-bukti page data:', e)
+  }
+
   let initialId = params.id
   if (!initialId) {
-    const belum = (rekapList || []).find(r => r.status_bayar === 'BELUM')
+    const belum = rekapList.find((r) => r.status_bayar === 'BELUM')
     initialId = belum?.id
   }
-  const initialRekap = (rekapList || []).find(r => r.id === initialId) || null
+  const initialRekap = rekapList.find((r) => r.id === initialId) || null
 
   return (
     <PajakUploadBuktiClient
       outlet={outlet}
-      rekapList={rekapList || []}
+      rekapList={rekapList}
       initialId={initialId || ''}
       initialRekap={initialRekap}
     />

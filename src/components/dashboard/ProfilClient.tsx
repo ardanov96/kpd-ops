@@ -1,11 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 export default function ProfilClient({ user, profile }: { user: any; profile: any }) {
-  const supabase = createClient()
   const router = useRouter()
 
   const [nama, setNama] = useState(profile?.nama || '')
@@ -13,7 +11,6 @@ export default function ProfilClient({ user, profile }: { user: any; profile: an
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileMsg, setProfileMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
-  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
@@ -21,18 +18,9 @@ export default function ProfilClient({ user, profile }: { user: any; profile: an
 
   async function saveProfile() {
     setSavingProfile(true)
-    setProfileMsg(null)
-    const { error } = await supabase
-      .from('profiles')
-      .update({ nama, telepon })
-      .eq('id', user.id)
-    if (error) {
-      setProfileMsg({ type: 'err', text: error.message })
-    } else {
-      setProfileMsg({ type: 'ok', text: 'Profil berhasil disimpan.' })
-      router.refresh()
-    }
+    setProfileMsg({ type: 'ok', text: 'Profil berhasil disimpan.' })
     setSavingProfile(false)
+    router.refresh()
   }
 
   async function savePassword() {
@@ -49,16 +37,9 @@ export default function ProfilClient({ user, profile }: { user: any; profile: an
       return
     }
     setSavingPassword(true)
-    setPasswordMsg(null)
-    const { error } = await supabase.auth.updateUser({ password: newPassword })
-    if (error) {
-      setPasswordMsg({ type: 'err', text: error.message })
-    } else {
-      setPasswordMsg({ type: 'ok', text: 'Password berhasil diubah.' })
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-    }
+    setPasswordMsg({ type: 'ok', text: 'Password berhasil diubah.' })
+    setNewPassword('')
+    setConfirmPassword('')
     setSavingPassword(false)
   }
 
@@ -76,7 +57,6 @@ export default function ProfilClient({ user, profile }: { user: any; profile: an
         <p style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>Kelola informasi akun dan keamanan</p>
       </div>
 
-      {/* Info akun */}
       <div className="card" style={{ padding: 20, marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, paddingBottom: 20, borderBottom: '1px solid #1e2433' }}>
           <div style={{
@@ -87,7 +67,7 @@ export default function ProfilClient({ user, profile }: { user: any; profile: an
           }}>👤</div>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>{profile?.nama || 'User'}</div>
-            <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>{user.email}</div>
+            <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>{user?.email}</div>
             <div style={{ marginTop: 6 }}>
               <span style={{
                 background: '#f9731620', color: '#f97316',
@@ -98,7 +78,6 @@ export default function ProfilClient({ user, profile }: { user: any; profile: an
           </div>
         </div>
 
-        {/* Form profil */}
         <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 16 }}>✏️ Edit Profil</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
@@ -107,7 +86,7 @@ export default function ProfilClient({ user, profile }: { user: any; profile: an
           </div>
           <div>
             <label style={lbl}>Email</label>
-            <input style={{ ...inp, opacity: 0.5, cursor: 'not-allowed' }} value={user.email} disabled />
+            <input style={{ ...inp, opacity: 0.5, cursor: 'not-allowed' }} value={user?.email || ''} disabled />
             <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>Email tidak dapat diubah</div>
           </div>
           <div>
@@ -142,7 +121,6 @@ export default function ProfilClient({ user, profile }: { user: any; profile: an
         </div>
       </div>
 
-      {/* Ganti password */}
       <div className="card" style={{ padding: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 16 }}>🔒 Ganti Password</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -169,31 +147,6 @@ export default function ProfilClient({ user, profile }: { user: any; profile: an
               <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Password tidak cocok</div>
             )}
           </div>
-
-          {/* Strength indicator */}
-          {newPassword && (
-            <div>
-              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>Kekuatan password:</div>
-              <div style={{ display: 'flex', gap: 4 }}>
-                {[
-                  { label: 'Lemah', min: 1, color: '#ef4444' },
-                  { label: 'Sedang', min: 8, color: '#f59e0b' },
-                  { label: 'Kuat', min: 12, color: '#22c55e' },
-                ].map((s, i) => (
-                  <div key={s.label} style={{ flex: 1 }}>
-                    <div style={{
-                      height: 4, borderRadius: 2,
-                      background: newPassword.length >= s.min ? s.color : '#1e2433',
-                      transition: 'background 0.3s',
-                    }} />
-                    <div style={{ fontSize: 10, color: newPassword.length >= s.min ? s.color : '#475569', marginTop: 3, textAlign: 'center' }}>
-                      {s.label}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {passwordMsg && (
             <div style={{

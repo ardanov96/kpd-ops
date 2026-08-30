@@ -1,14 +1,11 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import { getActiveOutlet } from '@/lib/supabase/outlet'
+import { query } from '@/lib/db'
+import { getActiveOutlet } from '@/lib/db/outlet'
 import InventarisClient from '@/components/dashboard/InventarisClient'
 
 export const dynamic = 'force-dynamic'
 
 export default async function InventarisPage() {
-  const supabase = createAdminClient()
-
-  // ✅ Pakai helper (Fix #2)
-  const outlet = await getActiveOutlet(supabase)
+  const outlet = await getActiveOutlet()
 
   if (!outlet) {
     return (
@@ -17,34 +14,43 @@ export default async function InventarisPage() {
           Belum ada outlet
         </h1>
         <p style={{ color: '#94a3b8', marginTop: 8 }}>
-          Tambahkan outlet di Supabase terlebih dahulu.
+          Tambahkan outlet di database terlebih dahulu.
         </p>
       </div>
     )
   }
 
-  // Fetch stok aktual via view (join kategori)
-  const { data: stokList } = await supabase
-    .from('v_stok_aktual')
-    .select('*, kategori:kategori_inventaris(id, kode, nama)')
-    .eq('outlet_id', outlet.id)
-    .order('nama')
+  let stokList: any[] = []
+  let kategoriList: any[] = []
 
-  // Fetch kategori untuk form
-  const { data: kategoriList } = await supabase
-    .from('kategori_inventaris')
-    .select('*')
-    .or(`outlet_id.is.null,outlet_id.eq.${outlet.id}`)
-    .order('nama')
+  try {
+    const stokRes = await query(`
+      SELECT sa.*,
+        json_build_object('id', k.id, 'kode', k.kode, 'nama', k.nama) as kategori
+      FROM v_stok_aktual sa
+      LEFT JOIN barang b ON b.id = sa.barang_id
+      LEFT JOIN kategori_inventaris k ON k.id = b.kategori_id
+      WHERE sa.outlet_id = $1
+      ORDER BY sa.nama ASC
+    `, [outlet.id])
+    stokList = stokRes.rows
 
-  // Count barang di bawah minimum
-  const belowMinCount = (stokList || []).filter((s: any) => s.is_below_min).length
+    const katRes = await query(
+      'SELECT * FROM kategori_inventaris WHERE outlet_id IS NULL OR outlet_id = $1 ORDER BY nama ASC',
+      [outlet.id]
+    )
+    kategoriList = katRes.rows
+  } catch (e) {
+    console.error('Error fetching inventaris page data:', e)
+  }
+
+  const belowMinCount = stokList.filter((s: any) => s.is_below_min).length
 
   return (
     <InventarisClient
       outlet={outlet}
-      initialStok={stokList || []}
-      kategoriList={kategoriList || []}
+      initialStok={stokList}
+      kategoriList={kategoriList}
       belowMinCount={belowMinCount}
     />
   )

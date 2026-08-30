@@ -1,15 +1,11 @@
-import { createAdminClient } from '@/lib/supabase/server'
-import { getActiveOutlet } from '@/lib/supabase/outlet'
+import { query } from '@/lib/db'
+import { getActiveOutlet } from '@/lib/db/outlet'
 import AkuntingClient from '@/components/dashboard/AkuntingClient'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AkuntingPage() {
-  const supabase = createAdminClient()
-
-  // ✅ Pakai helper (Fix #2): prefer profile.outlet_id dari user login,
-  // fallback ke outlet paling lama.
-  const outlet = await getActiveOutlet(supabase)
+  const outlet = await getActiveOutlet()
 
   if (!outlet) {
     return (
@@ -18,70 +14,72 @@ export default async function AkuntingPage() {
           Belum ada outlet
         </h1>
         <p style={{ color: '#94a3b8', marginTop: 8 }}>
-          Tambahkan outlet di Supabase terlebih dahulu.
+          Tambahkan outlet di database terlebih dahulu.
         </p>
       </div>
     )
   }
 
-  // Default periode = bulan ini
   const now = new Date()
   const currentPeriode = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
-  // Laba-Rugi 6 bulan terakhir (untuk chart)
-  // Generate list 6 bulan ke belakang, lalu query view
   const periodes: string[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     periodes.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
   }
 
-  const { data: labaRugi } = await supabase
-    .from('v_laba_rugi')
-    .select('periode, total_income, total_expense, laba_kotor')
-    .eq('outlet_id', outlet.id)
-    .in('periode', periodes)
-    .order('periode', { ascending: true })
+  let labaRugiHistory: any[] = []
+  let breakdown: any[] = []
+  let recent: any[] = []
+  let closingBulanIni: any = null
 
-  // KPI bulan ini
-  const lrBulanIni = (labaRugi || []).find((r: any) => r.periode === currentPeriode)
+  try {
+    const lrRes = await query(
+      'SELECT periode, total_income, total_expense, laba_kotor FROM v_laba_rugi WHERE outlet_id = $1 AND periode = ANY($2) ORDER BY periode ASC',
+      [outlet.id, periodes]
+    )
+    labaRugiHistory = lrRes.rows
+
+    const bdRes = await query(
+      'SELECT kategori_kode, kategori_nama, kategori_tipe, nominal_income, nominal_expense, jumlah_transaksi FROM v_keuangan_per_kategori WHERE outlet_id = $1 AND periode = $2 ORDER BY nominal_expense DESC',
+      [outlet.id, currentPeriode]
+    )
+    breakdown = bdRes.rows
+
+    const recRes = await query(`
+      SELECT tk.id, tk.tanggal, tk.tipe, tk.nominal, tk.metode, tk.keterangan, tk.sumber,
+        json_build_object('kode', k.kode, 'nama', k.nama) as kategori
+      FROM transaksi_keuangan tk
+      LEFT JOIN kategori_akun k ON k.id = tk.kategori_id
+      WHERE tk.outlet_id = $1
+      ORDER BY tk.tanggal DESC, tk.created_at DESC
+      LIMIT 10
+    `, [outlet.id])
+    recent = recRes.rows
+
+    const clRes = await query(
+      'SELECT * FROM periode_closing WHERE outlet_id = $1 AND periode = $2 LIMIT 1',
+      [outlet.id, currentPeriode]
+    )
+    closingBulanIni = clRes.rows[0] || null
+  } catch (e) {
+    console.error('Error fetching akunting page data:', e)
+  }
+
+  const lrBulanIni = labaRugiHistory.find((r: any) => r.periode === currentPeriode)
   const totalIncome = lrBulanIni ? Number(lrBulanIni.total_income) : 0
   const totalExpense = lrBulanIni ? Number(lrBulanIni.total_expense) : 0
   const labaKotor = lrBulanIni ? Number(lrBulanIni.laba_kotor) : 0
-
-  // Breakdown per kategori bulan ini (untuk tabel top expense)
-  const { data: breakdown } = await supabase
-    .from('v_keuangan_per_kategori')
-    .select('kategori_kode, kategori_nama, kategori_tipe, nominal_income, nominal_expense, jumlah_transaksi')
-    .eq('outlet_id', outlet.id)
-    .eq('periode', currentPeriode)
-    .order('nominal_expense', { ascending: false })
-
-  // 10 transaksi terakhir (untuk recent activity)
-  const { data: recent } = await supabase
-    .from('transaksi_keuangan')
-    .select('id, tanggal, tipe, nominal, metode, keterangan, sumber, kategori:kategori_akun(kode, nama)')
-    .eq('outlet_id', outlet.id)
-    .order('tanggal', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(10)
-
-  // Cek apakah bulan ini sudah closing
-  const { data: closingBulanIni } = await supabase
-    .from('periode_closing')
-    .select('*')
-    .eq('outlet_id', outlet.id)
-    .eq('periode', currentPeriode)
-    .maybeSingle()
 
   return (
     <AkuntingClient
       outlet={outlet}
       currentPeriode={currentPeriode}
       periodes={periodes}
-      labaRugiHistory={labaRugi || []}
-      breakdown={breakdown || []}
-      recent={recent || []}
+      labaRugiHistory={labaRugiHistory}
+      breakdown={breakdown}
+      recent={recent}
       kpi={{ totalIncome, totalExpense, labaKotor }}
       closingBulanIni={closingBulanIni}
     />
