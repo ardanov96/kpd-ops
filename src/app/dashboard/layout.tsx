@@ -42,7 +42,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (process.env.DATABASE_URL) {
     try {
-      const kurirRes = await query('SELECT kode, nama, warna FROM kurir ORDER BY nama ASC')
+      const kurirRes = await query('SELECT kode, nama, warna FROM kurir WHERE aktif IS NOT FALSE ORDER BY nama ASC')
       kurirAktif = kurirRes.rows
 
       const invAlertRes = await query('SELECT COUNT(*)::int as count FROM v_stok_aktual WHERE is_below_min = true')
@@ -55,6 +55,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
     } catch (e) {
       console.error('Error fetching layout data from Neon:', e)
     }
+  }
+
+  if (kurirAktif.length === 0) {
+    kurirAktif = [
+      { kode: 'LION', nama: 'Lion Parcel', warna: '#f97316' },
+      { kode: 'JNE', nama: 'JNE Express', warna: '#ef4444' },
+    ]
   }
 
   return (

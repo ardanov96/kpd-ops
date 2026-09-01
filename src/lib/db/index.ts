@@ -1,4 +1,9 @@
 import { Pool, QueryResult, QueryResultRow } from 'pg'
+import dns from 'dns'
+
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first')
+}
 
 const globalForDb = globalThis as unknown as {
   pool: Pool | undefined

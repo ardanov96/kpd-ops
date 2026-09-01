@@ -89,7 +89,7 @@ export default function JnePackingListTable({
                 <tr key={row.id} style={{ borderBottom: '1px solid #1e2433', transition: 'background 0.1s' }}
                   onMouseEnter={e => (e.currentTarget.style.background = '#1e243330')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                  <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{row.tanggal?.slice(0, 10) || '—'}</td>
+                  <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{String(row.tanggal || '').slice(0, 10) || '—'}</td>
                   <td style={{ padding: '9px 14px', fontFamily: 'monospace', fontSize: 11, color: '#ef4444', whiteSpace: 'nowrap' }}>{row.nomor_pl}</td>
                   <td style={{ padding: '9px 14px', color: '#f97316', fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt(row.amount || 0)}</td>
                   <td style={{ padding: '9px 14px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{fmt(row.publish_rate || 0)}</td>

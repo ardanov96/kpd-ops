@@ -16,10 +16,17 @@ export default async function AnalitikPage() {
     `)
     transaksi = txRes.rows
 
-    const kurirRes = await query('SELECT id, kode, nama, warna FROM kurir ORDER BY nama ASC')
+    const kurirRes = await query('SELECT id, kode, nama, warna FROM kurir WHERE aktif IS NOT FALSE ORDER BY nama ASC')
     kurirList = kurirRes.rows
   } catch (e) {
     console.error('Error fetching analitik page data:', e)
+  }
+
+  if (kurirList.length === 0) {
+    kurirList = [
+      { id: '00000000-0000-0000-0000-000000000010', kode: 'LION', nama: 'Lion Parcel', warna: '#f97316' },
+      { id: '00000000-0000-0000-0000-000000000020', kode: 'JNE', nama: 'JNE Express', warna: '#ef4444' },
+    ]
   }
 
   return (

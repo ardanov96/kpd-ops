@@ -40,11 +40,11 @@ export default function AnalitikClient({
 
   const filtered = useMemo(() => {
     let data = selectedKurir ? transaksi.filter(t => t.kurir?.kode === selectedKurir) : transaksi
-        if (selectedPeriode) {
-            data = data.filter(t => t.tanggal?.slice(0, 7) === selectedPeriode)
-        }
-        return data
-    }, [transaksi, selectedKurir, selectedPeriode])
+    if (selectedPeriode) {
+      data = data.filter(t => String(t.tanggal || '').slice(0, 7) === selectedPeriode)
+    }
+    return data
+  }, [transaksi, selectedKurir, selectedPeriode])
 
   const nonCNX = useMemo(() => filtered.filter(t => t.status !== 'CNX'), [filtered])
 
@@ -55,7 +55,7 @@ export default function AnalitikClient({
   const periodeData = useMemo(() => {
     const map: Record<string, { periode: string; omzet: number; paket: number; pod: number; total: number; diskon: number }> = {}
     filtered.forEach(t => {
-      const p = t.tanggal?.slice(0, 7) || ''
+      const p = String(t.tanggal || '').slice(0, 7)
       if (!p) return
       if (!map[p]) map[p] = { periode: p, omzet: 0, paket: 0, pod: 0, total: 0, diskon: 0 }
       map[p].omzet += t.total_biaya || 0
@@ -91,7 +91,7 @@ export default function AnalitikClient({
       return {
         label: b.label,
         jumlah: rows.length,
-        omzet: rows.reduce((s, t) => s + (t.total_biaya || 0), 0),
+        omzet: rows.reduce((s, t) => s + (Number(t.total_biaya) || 0), 0),
         pct: nonCNX.length > 0 ? +((rows.length / nonCNX.length) * 100).toFixed(1) : 0,
       }
     }),
@@ -103,10 +103,10 @@ export default function AnalitikClient({
     const map: Record<number, { hari: string; jumlah: number; omzet: number }> = {}
     for (let i = 0; i < 7; i++) map[i] = { hari: HARI[i], jumlah: 0, omzet: 0 }
     nonCNX.forEach(t => {
-      if (!t.tanggal) return
-      const day = new Date(t.tanggal).getDay()
+      const d = new Date(t.tanggal)
+      const day = isNaN(d.getDay()) ? 0 : d.getDay()
       map[day].jumlah++
-      map[day].omzet += t.total_biaya || 0
+      map[day].omzet += Number(t.total_biaya) || 0
     })
     return Object.values(map)
   }, [nonCNX])

@@ -5,7 +5,52 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const res = await query('SELECT * FROM kurir ORDER BY nama ASC')
+    // 1. Pastikan tabel kurir dan kolom-kolomnya siap
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS kurir (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          kode text UNIQUE NOT NULL,
+          nama text NOT NULL,
+          warna text DEFAULT '#f97316',
+          telepon text,
+          portal_url text,
+          keterangan text,
+          aktif boolean DEFAULT true,
+          created_at timestamptz DEFAULT now()
+        );
+      `)
+      await query(`ALTER TABLE kurir ADD COLUMN IF NOT EXISTS telepon text;`)
+      await query(`ALTER TABLE kurir ADD COLUMN IF NOT EXISTS portal_url text;`)
+      await query(`ALTER TABLE kurir ADD COLUMN IF NOT EXISTS keterangan text;`)
+      await query(`ALTER TABLE kurir ADD COLUMN IF NOT EXISTS aktif boolean DEFAULT true;`)
+    } catch (dbErr) {
+      console.error('Error checking kurir schema:', dbErr)
+    }
+
+    let res = await query('SELECT * FROM kurir ORDER BY nama ASC')
+
+    // 2. Jika database kurir masih kosong, otomatis seed 2 default franchise (LION & JNE)
+    if (res.rows.length === 0) {
+      try {
+        await query(`
+          INSERT INTO kurir (id, kode, nama, warna, portal_url, keterangan, aktif)
+          VALUES
+            ('00000000-0000-0000-0000-000000000010', 'LION', 'Lion Parcel', '#f97316', 'https://genesis.lionparcel.com', 'Franchise Ekspedisi Lion Parcel (Genesis)', true),
+            ('00000000-0000-0000-0000-000000000020', 'JNE', 'JNE Express', '#ef4444', 'https://myjne.jne.co.id', 'Franchise Ekspedisi JNE Express (MyJNE)', true)
+          ON CONFLICT (kode) DO UPDATE SET
+            nama = EXCLUDED.nama,
+            warna = EXCLUDED.warna,
+            portal_url = COALESCE(kurir.portal_url, EXCLUDED.portal_url),
+            keterangan = COALESCE(kurir.keterangan, EXCLUDED.keterangan),
+            aktif = true;
+        `)
+        res = await query('SELECT * FROM kurir ORDER BY nama ASC')
+      } catch (seedErr) {
+        console.error('Error seeding default kurir:', seedErr)
+      }
+    }
+
     return NextResponse.json(res.rows, {
       headers: { 'Cache-Control': 'no-store' },
     })

@@ -230,7 +230,7 @@ export default function UploadClient({ logs }: { logs: any[] }) {
               <label style={lbl}>Ekspedisi *</label>
               <select className="input-base" value={kurirId} onChange={e => setKurirId(e.target.value)} required>
                 <option value="">-- Pilih Ekspedisi --</option>
-                {ekspedisiList.map(k => (
+                {ekspedisiList.filter(k => k.aktif !== false).map(k => (
                   <option key={k.id} value={k.id}>{k.nama} ({k.kode})</option>
                 ))}
               </select>
@@ -473,10 +473,12 @@ export default function UploadClient({ logs }: { logs: any[] }) {
                           background: '#1e2433', border: 'none', borderRadius: 5,
                           padding: '4px 7px', color: '#94a3b8', fontSize: 11, cursor: 'pointer',
                         }}>✏️</button>
-                        <button onClick={() => deleteEkspedisi(k.id, k.nama)} style={{
-                          background: '#ef444415', border: 'none', borderRadius: 5,
-                          padding: '4px 7px', color: '#ef4444', fontSize: 11, cursor: 'pointer',
-                        }}>🗑️</button>
+                        {k.kode !== 'LION' && k.kode !== 'JNE' && (
+                          <button onClick={() => deleteEkspedisi(k.id, k.nama)} style={{
+                            background: '#ef444415', border: 'none', borderRadius: 5,
+                            padding: '4px 7px', color: '#ef4444', fontSize: 11, cursor: 'pointer',
+                          }}>🗑️</button>
+                        )}
                       </div>
                     </div>
                   ))}

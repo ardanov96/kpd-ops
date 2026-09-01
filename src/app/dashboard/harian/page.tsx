@@ -41,10 +41,17 @@ export default async function HarianPage() {
     `)
     recentTx = txRes.rows
 
-    const kurirRes = await query('SELECT kode, nama, warna FROM kurir ORDER BY kode ASC')
+    const kurirRes = await query('SELECT kode, nama, warna FROM kurir WHERE aktif IS NOT FALSE ORDER BY kode ASC')
     kurirList = kurirRes.rows
   } catch (e) {
     console.error('Error fetching harian page data:', e)
+  }
+
+  if (kurirList.length === 0) {
+    kurirList = [
+      { kode: 'LION', nama: 'Lion Parcel', warna: '#f97316' },
+      { kode: 'JNE', nama: 'JNE Express', warna: '#ef4444' },
+    ]
   }
 
   return (

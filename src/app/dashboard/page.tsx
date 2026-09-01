@@ -12,7 +12,7 @@ export default async function DashboardPage() {
       summary = summaryRes.rows
 
       const recentTxRes = await query(`
-        SELECT t.*,
+        SELECT t.*, to_char(t.tanggal, 'YYYY-MM-DD') as tanggal,
           json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir
         FROM transaksi t
         LEFT JOIN kurir k ON k.id = t.kurir_id
@@ -22,7 +22,7 @@ export default async function DashboardPage() {
       recentTx = recentTxRes.rows
 
       const grandTotalRes = await query(`
-        SELECT t.total_biaya, t.diskon_booking, t.diskon_asuransi, t.diskon_forward_rate, t.koli, t.status, t.kurir_id, t.nama_produk, t.komoditas, t.kota_tujuan,
+        SELECT t.total_biaya, t.diskon_booking, t.diskon_asuransi, t.diskon_forward_rate, t.koli, t.status, t.kurir_id, t.nama_produk, t.komoditas, t.kota_tujuan, to_char(t.tanggal, 'YYYY-MM-DD') as tanggal,
           json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir
         FROM transaksi t
         LEFT JOIN kurir k ON k.id = t.kurir_id

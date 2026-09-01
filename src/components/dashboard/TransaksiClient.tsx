@@ -11,6 +11,13 @@ const fmt = (n: number) =>
 const fmtFull = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
 
+const fmtBerat = (val: any): string => {
+  if (val === null || val === undefined || val === '') return '0 kg'
+  const n = Number(val)
+  if (isNaN(n)) return '0 kg'
+  return `${n.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg`
+}
+
 const STATUS_COLOR: Record<string, string> = {
   POD: '#22c55e', CNX: '#ef4444', PENDING: '#f59e0b', TRANSIT: '#3b82f6', RETURN: '#a855f7'
 }
@@ -257,7 +264,7 @@ export default function TransaksiClient({
                   style={{ borderBottom: '1px solid #1e2433', transition: 'background 0.1s' }}
                   onMouseEnter={e => (e.currentTarget.style.background = '#1e243330')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                  <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{tx.tanggal?.slice(0, 10)}</td>
+                  <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{String(tx.tanggal || '').slice(0, 10)}</td>
                   <td style={{ padding: '9px 14px', fontFamily: 'monospace', fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>{tx.nomor_stt}</td>
                   <td style={{ padding: '9px 14px' }}>
                     <span style={{
@@ -271,7 +278,7 @@ export default function TransaksiClient({
                   <td style={{ padding: '9px 14px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{tx.nama_produk || '—'}</td>
                   <td style={{ padding: '9px 14px', color: '#94a3b8', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.komoditas || '—'}</td>
                   <td style={{ padding: '9px 14px', color: '#64748b', textAlign: 'center' }}>{tx.koli}</td>
-                  <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{tx.berat_kena_biaya} kg</td>
+                  <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{fmtBerat(tx.berat_kena_biaya)}</td>
 
                   {/* ✅ Biaya Asuransi */}
                   <td style={{ padding: '9px 14px', color: '#06b6d4', whiteSpace: 'nowrap' }}>

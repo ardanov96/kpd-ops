@@ -15,6 +15,7 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
+
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -22,12 +23,21 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       })
       const data = await res.json()
+
       if (res.ok && data.success) {
         router.push('/dashboard')
         router.refresh()
         return
       }
-    } catch {}
+
+      if (data?.error) {
+        setError(data.error)
+        setLoading(false)
+        return
+      }
+    } catch {
+      // Jika fetch ke internal API gagal, coba fallback ke Supabase client
+    }
 
     try {
       const supabase = createClient()

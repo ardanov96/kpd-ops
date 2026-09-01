@@ -3,16 +3,27 @@
 import { useState, useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts'
 
-const fmt = (n: number) =>
-  n >= 1_000_000 ? `Rp ${(n / 1_000_000).toFixed(1)}jt`
-  : n >= 1_000   ? `Rp ${(n / 1_000).toFixed(0)}rb`
-  : `Rp ${n}`
+const num = (v: any): number => {
+  if (v === null || v === undefined || v === '') return 0
+  const n = Number(v)
+  return isNaN(n) ? 0 : n
+}
 
-const fmtFull = (n: number) =>
-  n >= 1_000_000_000 ? `Rp ${(n / 1_000_000_000).toFixed(2)}M`
-  : n >= 1_000_000   ? `Rp ${(n / 1_000_000).toFixed(2)}jt`
-  : n >= 1_000       ? `Rp ${(n / 1_000).toFixed(0)}rb`
-  : `Rp ${n}`
+const fmt = (raw: any) => {
+  const n = num(raw)
+  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)}M`
+  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1)}jt`
+  if (n >= 1_000) return `Rp ${(n / 1_000).toFixed(0)}rb`
+  return `Rp ${n.toLocaleString('id-ID')}`
+}
+
+const fmtFull = (raw: any) => {
+  const n = num(raw)
+  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)}M`
+  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(2)}jt`
+  if (n >= 1_000) return `Rp ${(n / 1_000).toFixed(0)}rb`
+  return `Rp ${n.toLocaleString('id-ID')}`
+}
 
 const STATUS_COLOR: Record<string, string> = { POD: '#22c55e', CNX: '#ef4444', PENDING: '#f59e0b', TRANSIT: '#3b82f6' }
 
@@ -40,6 +51,21 @@ function KpiCard({ label, value, sub, icon, color }: { label: string; value: str
   )
 }
 
+const toDateStr = (val: any): string => {
+  if (!val) return ''
+  if (typeof val === 'string') return val
+  if (val instanceof Date) return val.toISOString().slice(0, 10)
+  if (typeof val === 'object' && typeof val.toISOString === 'function') return val.toISOString().slice(0, 10)
+  return String(val)
+}
+
+const fmtBerat = (val: any): string => {
+  if (val === null || val === undefined || val === '') return '0 kg'
+  const n = Number(val)
+  if (isNaN(n)) return '0 kg'
+  return `${n.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg`
+}
+
 export default function OverviewClient({
   summary, recentTx, grandTotal,
 }: {
@@ -62,13 +88,13 @@ export default function OverviewClient({
 
   const filteredGrandTotal = useMemo(() => {
     let data = selectedKurir ? grandTotal.filter(d => d.kurir?.kode === selectedKurir) : grandTotal
-    if (selectedPeriode) data = data.filter(d => d.tanggal?.slice(0, 7) === selectedPeriode)
+    if (selectedPeriode) data = data.filter(d => toDateStr(d.tanggal).slice(0, 7) === selectedPeriode)
     return data
   }, [grandTotal, selectedKurir, selectedPeriode])
 
   const filteredRecentTx = useMemo(() => {
     let data = selectedKurir ? recentTx.filter(d => d.kurir?.kode === selectedKurir) : recentTx
-    if (selectedPeriode) data = data.filter(d => d.tanggal?.slice(0, 7) === selectedPeriode)
+    if (selectedPeriode) data = data.filter(d => toDateStr(d.tanggal).slice(0, 7) === selectedPeriode)
     return data
   }, [recentTx, selectedKurir, selectedPeriode])
 
@@ -81,18 +107,18 @@ export default function OverviewClient({
   const selectedKurirInfo = kurirOptions.find(k => k.kode === selectedKurir)
 
   const stats = useMemo(() => {
-  const totalOmzet = filteredGrandTotal.reduce((s, d) => s + (d.total_biaya || 0), 0)
-  const totalDiskon = filteredGrandTotal.reduce((s, d) => s + (d.diskon_booking || 0), 0)
-  const totalKoli = filteredGrandTotal.reduce((s, d) => s + (d.koli || 0), 0)
+  const totalOmzet = filteredGrandTotal.reduce((s, d) => s + num(d.total_biaya), 0)
+  const totalDiskon = filteredGrandTotal.reduce((s, d) => s + num(d.diskon_booking), 0)
+  const totalKoli = filteredGrandTotal.reduce((s, d) => s + num(d.koli), 0)
   const podCount = filteredGrandTotal.filter(d => d.status === 'POD').length
   const podRate = filteredGrandTotal.length > 0 ? ((podCount / filteredGrandTotal.length) * 100).toFixed(1) : '0'
 
   const byDate: Record<string, { count: number; omzet: number }> = {}
   filteredRecentTx.forEach(d => {
-    const dt = d.tanggal?.slice(0, 10) || ''
+    const dt = toDateStr(d.tanggal).slice(0, 10) || ''
     if (!byDate[dt]) byDate[dt] = { count: 0, omzet: 0 }
     byDate[dt].count++
-    byDate[dt].omzet += d.total_biaya || 0
+    byDate[dt].omzet += num(d.total_biaya)
   })
   const dailyTrend = Object.entries(byDate)
     .sort((a, b) => a[0].localeCompare(b[0]))
@@ -100,9 +126,9 @@ export default function OverviewClient({
 
   const kurirSummary = filteredSummary.reduce((acc: Record<string, any>, s) => {
     if (!acc[s.kurir]) acc[s.kurir] = { nama: s.kurir, warna: s.kurir_warna, paket: 0, omzet: 0, diskon: 0 }
-    acc[s.kurir].paket += s.total_paket || 0
-    acc[s.kurir].omzet += s.total_omzet || 0
-    acc[s.kurir].diskon += s.total_diskon || 0
+    acc[s.kurir].paket += num(s.total_paket)
+    acc[s.kurir].omzet += num(s.total_omzet)
+    acc[s.kurir].diskon += num(s.total_diskon)
     return acc
   }, {})
 
@@ -110,7 +136,7 @@ export default function OverviewClient({
   const nonCNX = filteredGrandTotal.filter(d => d.status !== 'CNX')
 
   const netProfit = nonCNX.reduce((s, d) =>
-    s + (d.diskon_booking || 0) + (d.diskon_asuransi || 0) + (d.diskon_forward_rate || 0), 0)
+    s + num(d.diskon_booking) + num(d.diskon_asuransi) + num(d.diskon_forward_rate), 0)
 
   const produkCount: Record<string, number> = {}
   nonCNX.forEach(d => {
@@ -351,7 +377,7 @@ export default function OverviewClient({
                     <div style={{ width: 10, height: 10, borderRadius: '50%', background: k.warna || '#64748b' }} />
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{k.nama}</span>
                   </div>
-                  <span style={{ fontSize: 13, color: k.warna || '#94a3b8', fontWeight: 700 }}>{k.paket} paket · {fmt(k.omzet)}</span>
+                  <span style={{ fontSize: 13, color: k.warna || '#94a3b8', fontWeight: 700 }}>{num(k.paket)} paket · {fmt(k.omzet)}</span>
                 </div>
                 <MiniBar value={k.omzet} max={maxKurirOmzet} color={k.warna || '#64748b'} />
               </div>
@@ -362,7 +388,7 @@ export default function OverviewClient({
             <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 16 }}>📊 Status Pengiriman</div>
             {(['POD', 'CNX', 'PENDING', 'TRANSIT'] as const).map(status => {
               const count = filteredGrandTotal.filter(d => d.status === status).length
-              const omzet = filteredGrandTotal.filter(d => d.status === status).reduce((s, d) => s + (d.total_biaya || 0), 0)
+              const omzet = filteredGrandTotal.filter(d => d.status === status).reduce((s, d) => s + num(d.total_biaya), 0)
               const pct = filteredGrandTotal.length > 0 ? ((count / filteredGrandTotal.length) * 100).toFixed(1) : '0'
               return (
                 <div key={status} style={{ background: '#0d111c', borderRadius: 10, padding: '12px 16px', marginBottom: 10, border: `1px solid ${STATUS_COLOR[status]}30` }}>
@@ -394,7 +420,7 @@ export default function OverviewClient({
                 <tbody>
                   {filteredRecentTx.slice(0, 15).map((tx, i) => (
                     <tr key={tx.id} style={{ borderBottom: '1px solid #1e2433', background: i % 2 === 0 ? 'transparent' : '#0d111c08' }}>
-                      <td style={{ padding: '9px 12px', color: '#64748b' }}>{tx.tanggal?.slice(0, 10)}</td>
+                      <td style={{ padding: '9px 12px', color: '#64748b' }}>{toDateStr(tx.tanggal).slice(0, 10)}</td>
                       <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontSize: 11, color: '#94a3b8' }}>{tx.nomor_stt?.slice(-10)}</td>
                       <td style={{ padding: '9px 12px' }}>
                         <span style={{ background: (tx.kurir?.warna || '#64748b') + '20', color: tx.kurir?.warna || '#94a3b8', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
@@ -405,7 +431,7 @@ export default function OverviewClient({
                         {tx.kota_tujuan?.split('-')[1] || tx.kota_tujuan}
                       </td>
                       <td style={{ padding: '9px 12px', color: '#94a3b8' }}>{tx.nama_produk || '—'}</td>
-                      <td style={{ padding: '9px 12px', color: '#64748b' }}>{tx.berat_kena_biaya} kg</td>
+                      <td style={{ padding: '9px 12px', color: '#64748b' }}>{fmtBerat(tx.berat_kena_biaya)}</td>
                       <td style={{ padding: '9px 12px', fontWeight: 700, color: '#f97316' }}>{fmt(tx.total_biaya || 0)}</td>
                       <td style={{ padding: '9px 12px' }}>
                         <span style={{ background: (STATUS_COLOR[tx.status] || '#64748b') + '20', color: STATUS_COLOR[tx.status] || '#64748b', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
