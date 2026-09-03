@@ -44,6 +44,16 @@ export default async function InventarisPage() {
     console.error('Error fetching inventaris page data:', e)
   }
 
+  if (kategoriList.length === 0) {
+    kategoriList = [
+      { id: '00000000-0000-0000-0000-000000000101', kode: 'PKG', nama: 'Packaging', deskripsi: 'Karton, lakban, plastik packing, bubble wrap' },
+      { id: '00000000-0000-0000-0000-000000000102', kode: 'ATK', nama: 'ATK & Cetak', deskripsi: 'Kertas thermal resi, kertas HVS, label stiker' },
+      { id: '00000000-0000-0000-0000-000000000103', kode: 'PRL', nama: 'Perlengkapan Packing', deskripsi: 'Dispenser lakban, gunting, cutter, timbangan' },
+      { id: '00000000-0000-0000-0000-000000000104', kode: 'OPS', nama: 'Operasional & Kebersihan', deskripsi: 'Kantong sampah, pembersih lantai, tisu' },
+      { id: '00000000-0000-0000-0000-000000000105', kode: 'LNN', nama: 'Lain-lain', deskripsi: 'Kategori umum untuk barang perlengkapan lainnya' },
+    ]
+  }
+
   const belowMinCount = stokList.filter((s: any) => s.is_below_min).length
 
   return (

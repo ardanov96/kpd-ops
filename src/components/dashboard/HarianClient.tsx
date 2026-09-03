@@ -161,14 +161,15 @@ export default function HarianClient({
       cnx_count: number
     }> = {}
     filtered.forEach(d => {
-      if (!map[d.tanggal]) {
-        map[d.tanggal] = {
-          tanggal: d.tanggal,
+      const tgl = typeof d.tanggal === 'string' ? d.tanggal : (d.tanggal as any) instanceof Date ? (d.tanggal as any).toISOString().slice(0, 10) : String(d.tanggal || '')
+      if (!map[tgl]) {
+        map[tgl] = {
+          tanggal: tgl,
           total_paket: 0, total_omzet: 0, total_diskon: 0,
           net_omzet: 0, pod_count: 0, cnx_count: 0,
         }
       }
-      const m = map[d.tanggal]
+      const m = map[tgl]
       m.total_paket += d.total_paket
       m.total_omzet += d.total_omzet
       m.total_diskon += d.total_diskon
@@ -246,7 +247,7 @@ export default function HarianClient({
   // ─── 7-day chart data ─────────────────────────────────────
   const chart7d = useMemo(() => {
     return [...byDate].slice(-7).map(d => ({
-      tanggal: d.tanggal.slice(5), // MM-DD
+      tanggal: String(d.tanggal || '').slice(5), // MM-DD
       Omzet: d.total_omzet,
       'Net Omzet': d.net_omzet,
     }))
@@ -447,7 +448,13 @@ export default function HarianClient({
               ) : (
                 filteredRecent.map(tx => (
                   <tr key={tx.id} style={{ borderBottom: '1px solid #1e2433' }}>
-                    <td style={tdStyle}>{tx.tanggal}</td>
+                    <td style={tdStyle}>
+                      {typeof tx.tanggal === 'string'
+                        ? tx.tanggal
+                        : (tx.tanggal as any) instanceof Date
+                        ? (tx.tanggal as any).toISOString().slice(0, 10)
+                        : String(tx.tanggal ?? '')}
+                    </td>
                     <td style={{ ...tdStyle, fontFamily: 'monospace', color: '#f97316' }}>{tx.nomor_stt}</td>
                     <td style={tdStyle}>
                       {tx.kurir ? (

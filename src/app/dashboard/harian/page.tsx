@@ -32,7 +32,7 @@ export default async function HarianPage() {
     summary7d = sum7Res.rows
 
     const txRes = await query(`
-      SELECT t.id, t.nomor_stt, t.tanggal, t.kota_tujuan, t.total_biaya, t.status, t.jenis_kiriman,
+      SELECT t.id, t.nomor_stt, to_char(t.tanggal, 'YYYY-MM-DD') as tanggal, t.kota_tujuan, t.total_biaya, t.status, t.jenis_kiriman,
         json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir
       FROM transaksi t
       LEFT JOIN kurir k ON k.id = t.kurir_id
@@ -54,11 +54,22 @@ export default async function HarianPage() {
     ]
   }
 
+  const sanitizeDate = (val: any): string => {
+    if (!val) return ''
+    if (typeof val === 'string') return val.slice(0, 10)
+    if (val instanceof Date) return val.toISOString().slice(0, 10)
+    return String(val).slice(0, 10)
+  }
+
+  const safeSummary = summary.map(r => ({ ...r, tanggal: sanitizeDate(r.tanggal) }))
+  const safeSummary7d = summary7d.map(r => ({ ...r, tanggal: sanitizeDate(r.tanggal) }))
+  const safeRecentTx = recentTx.map(r => ({ ...r, tanggal: sanitizeDate(r.tanggal) }))
+
   return (
     <HarianClient
-      summary={summary}
-      summary7d={summary7d}
-      recentTx={recentTx}
+      summary={safeSummary}
+      summary7d={safeSummary7d}
+      recentTx={safeRecentTx}
       kurirList={kurirList}
       todayStr={todayStr}
     />

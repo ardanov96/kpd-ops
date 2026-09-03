@@ -109,18 +109,18 @@ group by outlet_id, to_char(tanggal, 'YYYY-MM'), metode;
 -- View: Breakdown per kategori per bulan (untuk drill-down Laba-Rugi)
 create or replace view v_keuangan_per_kategori as
 select
-  outlet_id,
-  to_char(tanggal, 'YYYY-MM') as periode,
-  kategori_id,
+  tk.outlet_id,
+  to_char(tk.tanggal, 'YYYY-MM') as periode,
+  tk.kategori_id,
   k.kode as kategori_kode,
   k.nama as kategori_nama,
   k.tipe as kategori_tipe,
-  sum(case when tipe = 'MASUK' then nominal else 0 end) as nominal_income,
-  sum(case when tipe = 'KELUAR' then nominal else 0 end) as nominal_expense,
+  sum(case when tk.tipe = 'MASUK' then tk.nominal else 0 end) as nominal_income,
+  sum(case when tk.tipe = 'KELUAR' then tk.nominal else 0 end) as nominal_expense,
   count(*) as jumlah_transaksi
 from transaksi_keuangan tk
 join kategori_akun k on k.id = tk.kategori_id
-group by outlet_id, to_char(tanggal, 'YYYY-MM'), kategori_id, k.kode, k.nama, k.tipe;
+group by tk.outlet_id, to_char(tk.tanggal, 'YYYY-MM'), tk.kategori_id, k.kode, k.nama, k.tipe;
 
 -- View: Neraca sederhana (MVP: Aset = Kas + Laba Ditahan)
 create or replace view v_neraca as

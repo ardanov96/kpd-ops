@@ -24,6 +24,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { Client } from 'pg'
 import { gzip } from 'node:zlib'
+import { normalizeConnectionString } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -58,6 +59,7 @@ const BACKUP_TABLES = [
   'pajak_rekap',
   'upload_log',
   'stok_awal',
+  'jne_packing_list',
 ] as const
 
 /**
@@ -74,7 +76,7 @@ function escapeValue(val: any): string {
 }
 
 async function pgBackup(dbUrl: string): Promise<{ sql: string; tablesBackedUp: number; failedTables: string[] }> {
-  const client = new Client({ connectionString: dbUrl })
+  const client = new Client({ connectionString: normalizeConnectionString(dbUrl) })
   await client.connect()
 
   const lines: string[] = []
