@@ -5,6 +5,16 @@ import dns from 'dns'
 // bukan JavaScript Date object, guna mencegah timezone shift dan error React render
 types.setTypeParser(1082, (val: string) => val)
 
+// Konversi tipe NUMERIC (OID 1700) dari default string ke JavaScript number.
+// Tanpa ini, operasi aritmatika di frontend (mis. `omzet += t.total_biaya`) menjadi
+// string concatenation dan menghasilkan nilai astronomis (e+206, Infinity).
+types.setTypeParser(1700, (val: string) => (val === '' ? null : Number(val)))
+
+// Konversi tipe BIGINT (OID 20) dari default string ke JavaScript number.
+// Aman untuk codebase ini karena semua kolom BIGINT di schema adalah nilai moneter
+// (total_biaya, diskon_*, biaya_*, dll); ID tabel semuanya UUID, bukan BIGINT.
+types.setTypeParser(20, (val: string) => (val === '' ? null : Number(val)))
+
 if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder('ipv4first')
 }
