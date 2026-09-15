@@ -53,20 +53,32 @@ export default function AnalitikClient({
 
   // ── Tab 1: Perbandingan Periode ──
   const periodeData = useMemo(() => {
-    const map: Record<string, { periode: string; omzet: number; paket: number; pod: number; total: number; diskon: number }> = {}
+    const map: Record<string, { periode: string; omzet: number; paket: number; pod: number; total: number; diskon: number; lionOmzet: number }> = {}
     filtered.forEach(t => {
       const p = String(t.tanggal || '').slice(0, 7)
       if (!p) return
-      if (!map[p]) map[p] = { periode: p, omzet: 0, paket: 0, pod: 0, total: 0, diskon: 0 }
+      if (!map[p]) map[p] = { periode: p, omzet: 0, paket: 0, pod: 0, total: 0, diskon: 0, lionOmzet: 0 }
       map[p].omzet += t.total_biaya || 0
       map[p].paket++
       map[p].total++
       map[p].diskon += (t.diskon_booking || 0) + (t.diskon_asuransi || 0) + (t.diskon_forward_rate || 0)
       if (t.status === 'POD') map[p].pod++
+
+      if (t.kurir?.kode === 'LION') {
+        map[p].lionOmzet += t.total_biaya || 0
+      }
     })
     return Object.values(map)
       .sort((a, b) => a.periode.localeCompare(b.periode))
-      .map(d => ({ ...d, podRate: d.total > 0 ? +((d.pod / d.total) * 100).toFixed(1) : 0 }))
+      .map(d => {
+        const isLionPenalty = d.lionOmzet > 0 && d.lionOmzet < 3000000;
+        const penalty = isLionPenalty ? 500000 : 0;
+        return {
+          ...d,
+          penalty,
+          podRate: d.total > 0 ? +((d.pod / d.total) * 100).toFixed(1) : 0,
+        };
+      })
   }, [filtered])
 
   // ── Tab 2: Top Kota ──
@@ -204,7 +216,7 @@ export default function AnalitikClient({
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: '#0d111c' }}>
-                    {['Periode', 'Total Paket', 'Omzet', 'Net Profit', 'POD Rate'].map(h => (
+                    {['Periode', 'Total Paket', 'Omzet', 'Diskon', 'Penalty', 'POD Rate'].map(h => (
                       <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#64748b', fontWeight: 600, borderBottom: '1px solid #1e2433', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -220,6 +232,9 @@ export default function AnalitikClient({
                       <td style={{ padding: '10px 16px', color: '#3b82f6', fontWeight: 700 }}>{d.paket}</td>
                       <td style={{ padding: '10px 16px', color: '#f97316', fontWeight: 700 }}>{fmt(d.omzet)}</td>
                       <td style={{ padding: '10px 16px', color: '#22c55e', fontWeight: 700 }}>{fmt(d.diskon)}</td>
+                      <td style={{ padding: '10px 16px', color: d.penalty > 0 ? '#ef4444' : '#64748b', fontWeight: 700 }}>
+                        {d.penalty > 0 ? `-${fmt(d.penalty)}` : '—'}
+                      </td>
                       <td style={{ padding: '10px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <div style={{ flex: 1, background: '#1e2433', borderRadius: 4, height: 6, overflow: 'hidden', minWidth: 80 }}>
