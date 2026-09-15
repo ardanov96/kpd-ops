@@ -125,18 +125,20 @@ export default function OverviewClient({
     .map(([date, d]) => ({ date: date.slice(5), count: d.count, omzet: d.omzet }))
 
   const kurirSummary = filteredSummary.reduce((acc: Record<string, any>, s) => {
-    if (!acc[s.kurir]) acc[s.kurir] = { nama: s.kurir, warna: s.kurir_warna, paket: 0, omzet: 0, diskon: 0 }
+    if (!acc[s.kurir]) acc[s.kurir] = { nama: s.kurir, warna: s.kurir_warna, paket: 0, omzet: 0, diskon: 0, penalty: 0 }
     acc[s.kurir].paket += num(s.total_paket)
     acc[s.kurir].omzet += num(s.total_omzet)
     acc[s.kurir].diskon += num(s.total_diskon)
+    acc[s.kurir].penalty += num(s.penalty)
     return acc
   }, {})
 
   // ✅ Kalkulasi baru — harus di dalam useMemo
   const nonCNX = filteredGrandTotal.filter(d => d.status !== 'CNX')
 
+  const totalPenalty = filteredSummary.reduce((s, d) => s + num(d.penalty), 0)
   const netProfit = nonCNX.reduce((s, d) =>
-    s + num(d.diskon_booking) + num(d.diskon_asuransi) + num(d.diskon_forward_rate), 0)
+    s + num(d.diskon_booking) + num(d.diskon_asuransi) + num(d.diskon_forward_rate), 0) - totalPenalty
 
   const produkCount: Record<string, number> = {}
   nonCNX.forEach(d => {
@@ -153,7 +155,7 @@ export default function OverviewClient({
   })
   const top3Kota = Object.entries(kotaCount).sort((a, b) => b[1] - a[1]).slice(0, 3)
 
-  return { totalOmzet, totalDiskon, totalKoli, podRate, podCount, dailyTrend, kurirSummary: Object.values(kurirSummary), netProfit, produkTerpopuler, top3Kota }
+  return { totalOmzet, totalDiskon, totalKoli, podRate, podCount, dailyTrend, kurirSummary: Object.values(kurirSummary), netProfit, totalPenalty, produkTerpopuler, top3Kota }
 }, [filteredGrandTotal, filteredRecentTx, filteredSummary])
 
   const maxKurirOmzet = Math.max(...stats.kurirSummary.map((k: any) => k.omzet), 1)
@@ -294,9 +296,9 @@ export default function OverviewClient({
   <KpiCard
     label="Net Profit"
     value={fmt(stats.netProfit)}
-    sub="Booking + Asuransi + Fwd Rate (excl. CNX)"
+    sub={stats.totalPenalty > 0 ? `Telah dipotong Penalty ${fmt(stats.totalPenalty)}` : "Booking + Asuransi + Fwd Rate (excl. CNX)"}
     icon="💹"
-    color="#22c55e"
+    color={stats.totalPenalty > 0 ? "#ef4444" : "#22c55e"}
   />
 
   {/* Produk Terpopuler */}
@@ -535,14 +537,15 @@ export default function OverviewClient({
                       </div>
                       <span style={{ fontSize: 13, color: '#22c55e', fontWeight: 700 }}>POD {row.pod_rate}%</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: row.penalty > 0 ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: 8 }}>
                       {[
-                        { l: 'Paket', v: row.total_paket },
-                        { l: 'Omzet', v: fmt(row.total_omzet) },
-                        { l: 'Diskon', v: fmt(row.total_diskon) },
+                        { l: 'Paket', v: row.total_paket, c: row.kurir_warna || '#f97316' },
+                        { l: 'Omzet', v: fmt(row.total_omzet), c: row.kurir_warna || '#f97316' },
+                        { l: 'Diskon', v: fmt(row.total_diskon), c: row.kurir_warna || '#f97316' },
+                        ...(row.penalty > 0 ? [{ l: 'Penalty', v: fmt(row.penalty), c: '#ef4444' }] : [])
                       ].map(x => (
                         <div key={x.l} style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: row.kurir_warna || '#f97316' }}>{x.v}</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: x.c }}>{x.v}</div>
                           <div style={{ fontSize: 10, color: '#475569' }}>{x.l}</div>
                         </div>
                       ))}
