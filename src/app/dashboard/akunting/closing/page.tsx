@@ -30,6 +30,7 @@ export default async function AkuntingClosingPage({
   let preview: any = null
   let existing: any = null
   let history: any[] = []
+  let penalty = 0
 
   try {
     const lrRes = await query(
@@ -49,6 +50,17 @@ export default async function AkuntingClosingPage({
       [outlet.id]
     )
     history = histRes.rows
+
+    const penaltyRes = await query(
+      `SELECT COALESCE(SUM(nominal), 0) AS penalty
+         FROM transaksi_keuangan
+        WHERE outlet_id = $1
+          AND tipe = 'KELUAR'
+          AND sumber = 'KURIR'
+          AND to_char(tanggal, 'YYYY-MM') = $2`,
+      [outlet.id, selectedPeriode]
+    )
+    penalty = Number(penaltyRes.rows[0]?.penalty || 0)
   } catch (e) {
     console.error('Error fetching closing page data:', e)
   }
@@ -62,6 +74,7 @@ export default async function AkuntingClosingPage({
       preview={preview || { total_income: 0, total_expense: 0, laba_kotor: 0 }}
       existing={existing}
       history={history}
+      penalty={penalty}
     />
   )
 }

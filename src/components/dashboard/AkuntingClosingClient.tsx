@@ -11,7 +11,7 @@ const CONFIRM_TEXT = 'KONFIRMASI CLOSING'
 
 export default function AkuntingClosingClient({
   outlet, selectedPeriode, recommendedPeriode, currentPeriode,
-  preview, existing, history,
+  preview, existing, history, penalty,
 }: {
   outlet: { id: string; kode: string; nama: string }
   selectedPeriode: string
@@ -20,6 +20,7 @@ export default function AkuntingClosingClient({
   preview: { total_income: number; total_expense: number; laba_kotor: number }
   existing: any
   history: any[]
+  penalty?: number
 }) {
   const router = useRouter()
   const [periode, setPeriode] = useState(selectedPeriode)
@@ -60,6 +61,7 @@ export default function AkuntingClosingClient({
   const income = Number(preview.total_income || 0)
   const expense = Number(preview.total_expense || 0)
   const laba = Number(preview.laba_kotor || 0)
+  const penaltyAmount = Number(penalty || 0)
   const margin = income > 0 ? (laba / income * 100).toFixed(2) : '0.00'
 
   return (
@@ -117,6 +119,30 @@ export default function AkuntingClosingClient({
             Setelah di-closing, laba akan tersimpan permanen ke akun <strong>3900 Laba Ditahan</strong> dan periode ini terkunci.
             Pastikan semua transaksi sudah benar.
           </div>
+        </div>
+      )}
+
+      {/* Penalty notice (jika ada) */}
+      {penaltyAmount > 0 && (
+        <div style={{
+          background: '#ef444420', border: '1px solid #ef4444',
+          borderRadius: 10, padding: '12px 16px', marginBottom: 16,
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 22 }}>⚠️</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <strong style={{ color: '#ef4444', fontSize: 14 }}>
+              Termasuk Penalty Lion Parcel: {fmtRp(penaltyAmount)}
+            </strong>
+            <div style={{ fontSize: 12, color: '#fca5a5', marginTop: 2 }}>
+              Omzet Lion bulan ini {'<'} Rp 3.000.000 → otomatis dipotong Rp 500.000 (kategori 5900 Beban Lain-lain).
+              Nilai ini sudah termasuk dalam Total Expense di bawah.
+            </div>
+          </div>
+          <span style={{
+            background: '#ef4444', color: '#fff', padding: '4px 10px',
+            borderRadius: 6, fontSize: 11, fontWeight: 800,
+          }}>LION</span>
         </div>
       )}
 
