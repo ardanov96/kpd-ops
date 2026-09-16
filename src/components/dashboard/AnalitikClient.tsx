@@ -13,6 +13,10 @@ const fmt = (n: number) =>
 
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 
+// Penalty Lion Parcel mulai berlaku April 2024; sebelum itu masa probation (dispensasi).
+// Sinkron dengan v_summary_bulanan & fn_aggregate_income (migration 018).
+const LION_PENALTY_START_PERIODE = '2024-04'
+
 const BERAT_BUCKET = [
   { label: '< 1 kg',  min: 0,  max: 1 },
   { label: '1–3 kg',  min: 1,  max: 3 },
@@ -71,7 +75,11 @@ export default function AnalitikClient({
     return Object.values(map)
       .sort((a, b) => a.periode.localeCompare(b.periode))
       .map(d => {
-        const isLionPenalty = d.lionOmzet > 0 && d.lionOmzet < 3000000;
+        // Penalty Lion Parcel hanya berlaku mulai April 2024. Sebelum itu
+        // masa probation (dispensasi). Sinkron dgn v_summary_bulanan & fn_aggregate_income.
+        const isLionPenalty = d.periode >= LION_PENALTY_START_PERIODE
+          && d.lionOmzet > 0
+          && d.lionOmzet < 3000000;
         const penalty = isLionPenalty ? 500000 : 0;
         return {
           ...d,
