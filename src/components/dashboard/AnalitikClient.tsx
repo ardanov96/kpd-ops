@@ -12,13 +12,13 @@ const fmt = (n: number) =>
   : `Rp ${n}`
 
 // Formatter formal untuk tampilan tabel: pakai 'Rp 1.500.000' dengan
-// separator titik sesuai standar Indonesia. Nilai negatif dibungkus kurung
-// sesuai konvensi akuntansi, mis. (Rp 400.000), supaya jelas dan konsisten
-// dengan notasi standar laporan keuangan.
+// separator titik sesuai standar Indonesia. Nilai negatif menggunakan
+// tanda minus eksplisit '−' (unicode U+2212, bukan hyphen) supaya
+// langsung terbaca 'ini minus' tanpa ambigu.
 const fmtRpFormal = (n: number): string => {
   if (n === 0) return 'Rp 0'
   const formatted = Math.round(Math.abs(n)).toLocaleString('id-ID')
-  return n < 0 ? `(Rp ${formatted})` : `Rp ${formatted}`
+  return n < 0 ? `−Rp ${formatted}` : `Rp ${formatted}`
 }
 
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
