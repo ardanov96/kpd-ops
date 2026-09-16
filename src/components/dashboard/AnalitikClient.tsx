@@ -11,6 +11,16 @@ const fmt = (n: number) =>
   : n >= 1_000   ? `Rp ${(n / 1_000).toFixed(0)}rb`
   : `Rp ${n}`
 
+// Formatter formal untuk tampilan tabel: pakai 'Rp 1.500.000' dengan
+// separator titik sesuai standar Indonesia. Nilai negatif dibungkus kurung
+// sesuai konvensi akuntansi, mis. (Rp 400.000), supaya jelas dan konsisten
+// dengan notasi standar laporan keuangan.
+const fmtRpFormal = (n: number): string => {
+  if (n === 0) return 'Rp 0'
+  const formatted = Math.round(Math.abs(n)).toLocaleString('id-ID')
+  return n < 0 ? `(Rp ${formatted})` : `Rp ${formatted}`
+}
+
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 
 // Penalty Lion Parcel mulai berlaku April 2024; sebelum itu masa probation (dispensasi).
@@ -243,13 +253,13 @@ export default function AnalitikClient({
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                       <td style={{ padding: '10px 16px', fontWeight: 700, color: '#f1f5f9' }}>{d.periode}</td>
                       <td style={{ padding: '10px 16px', color: '#3b82f6', fontWeight: 700 }}>{d.paket}</td>
-                      <td style={{ padding: '10px 16px', color: '#f97316', fontWeight: 700 }}>{fmt(d.omzet)}</td>
-                      <td style={{ padding: '10px 16px', color: '#22c55e', fontWeight: 700 }}>{fmt(d.diskon)}</td>
+                      <td style={{ padding: '10px 16px', color: '#f97316', fontWeight: 700 }}>{fmtRpFormal(d.omzet)}</td>
+                      <td style={{ padding: '10px 16px', color: '#22c55e', fontWeight: 700 }}>{fmtRpFormal(d.diskon)}</td>
                       <td style={{ padding: '10px 16px', color: d.penalty > 0 ? '#ef4444' : '#64748b', fontWeight: 700 }}>
-                        {d.penalty > 0 ? `-${fmt(d.penalty)}` : '—'}
+                        {d.penalty > 0 ? fmtRpFormal(-d.penalty) : '—'}
                       </td>
-                      <td style={{ padding: '10px 16px', color: d.netProfit < 0 ? '#ef4444' : d.penalty > 0 ? '#f97316' : '#22c55e', fontWeight: 700 }} title={`Komisi ${fmt(d.diskon)}${d.penalty > 0 ? ` − Penalty ${fmt(d.penalty)}` : ''}`}>
-                        {fmt(d.netProfit)}
+                      <td style={{ padding: '10px 16px', color: d.netProfit < 0 ? '#ef4444' : d.penalty > 0 ? '#f97316' : '#22c55e', fontWeight: 700 }} title={`Komisi ${fmtRpFormal(d.diskon)}${d.penalty > 0 ? ` − Penalty ${fmtRpFormal(d.penalty)}` : ''}`}>
+                        {fmtRpFormal(d.netProfit)}
                       </td>
                       <td style={{ padding: '10px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
