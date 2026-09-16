@@ -81,9 +81,10 @@ export default function AnalitikClient({
           && d.lionOmzet > 0
           && d.lionOmzet < 3000000;
         const penalty = isLionPenalty ? 500000 : 0;
-        // Net profit = Omzet − Diskon − Penalty.
-        // Penghasilan aktual yang disimpan franchise setelah semua potongan.
-        const netProfit = d.omzet - d.diskon - penalty;
+        // Net Profit = total komisi (diskon_booking + diskon_asuransi +
+        // diskon_forward_rate) − penalty (jika ada). Bisa minus ketika
+        // komisi franchise lebih kecil dari penalty Lion Parcel.
+        const netProfit = d.diskon - penalty;
         return {
           ...d,
           penalty,
@@ -247,7 +248,7 @@ export default function AnalitikClient({
                       <td style={{ padding: '10px 16px', color: d.penalty > 0 ? '#ef4444' : '#64748b', fontWeight: 700 }}>
                         {d.penalty > 0 ? `-${fmt(d.penalty)}` : '—'}
                       </td>
-                      <td style={{ padding: '10px 16px', color: d.penalty > 0 ? '#f97316' : '#22c55e', fontWeight: 700 }} title={`Omzet ${fmt(d.omzet)} − Diskon ${fmt(d.diskon)}${d.penalty > 0 ? ` − Penalty ${fmt(d.penalty)}` : ''}`}>
+                      <td style={{ padding: '10px 16px', color: d.netProfit < 0 ? '#ef4444' : d.penalty > 0 ? '#f97316' : '#22c55e', fontWeight: 700 }} title={`Komisi ${fmt(d.diskon)}${d.penalty > 0 ? ` − Penalty ${fmt(d.penalty)}` : ''}`}>
                         {fmt(d.netProfit)}
                       </td>
                       <td style={{ padding: '10px 16px' }}>
