@@ -81,9 +81,13 @@ export default function AnalitikClient({
           && d.lionOmzet > 0
           && d.lionOmzet < 3000000;
         const penalty = isLionPenalty ? 500000 : 0;
+        // Net profit = total diskon periode dikurangi penalty (jika ada).
+        // Konsisten dengan formula netProfit di OverviewClient.tsx.
+        const netProfit = d.diskon - penalty;
         return {
           ...d,
           penalty,
+          netProfit,
           podRate: d.total > 0 ? +((d.pod / d.total) * 100).toFixed(1) : 0,
         };
       })
@@ -224,14 +228,14 @@ export default function AnalitikClient({
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: '#0d111c' }}>
-                    {['Periode', 'Total Paket', 'Omzet', 'Diskon', 'Penalty', 'POD Rate'].map(h => (
+                    {['Periode', 'Total Paket', 'Omzet', 'Diskon', 'Penalty', 'Net Profit', 'POD Rate'].map(h => (
                       <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#64748b', fontWeight: 600, borderBottom: '1px solid #1e2433', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {periodeData.length === 0 ? (
-                    <tr><td colSpan={5} style={{ padding: '32px 0', textAlign: 'center', color: '#475569' }}>Belum ada data.</td></tr>
+                    <tr><td colSpan={6} style={{ padding: '32px 0', textAlign: 'center', color: '#475569' }}>Belum ada data.</td></tr>
                   ) : periodeData.map(d => (
                     <tr key={d.periode} style={{ borderBottom: '1px solid #1e2433' }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#1e243330')}
@@ -242,6 +246,9 @@ export default function AnalitikClient({
                       <td style={{ padding: '10px 16px', color: '#22c55e', fontWeight: 700 }}>{fmt(d.diskon)}</td>
                       <td style={{ padding: '10px 16px', color: d.penalty > 0 ? '#ef4444' : '#64748b', fontWeight: 700 }}>
                         {d.penalty > 0 ? `-${fmt(d.penalty)}` : '—'}
+                      </td>
+                      <td style={{ padding: '10px 16px', color: d.penalty > 0 ? '#f97316' : '#22c55e', fontWeight: 700 }} title={d.penalty > 0 ? `Diskon ${fmt(d.diskon)} − Penalty ${fmt(d.penalty)}` : ''}>
+                        {fmt(d.netProfit)}
                       </td>
                       <td style={{ padding: '10px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
