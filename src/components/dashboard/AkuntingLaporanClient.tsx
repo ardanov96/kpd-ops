@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import { exportAndDownloadXlsx, type XlsxSheet } from '@/lib/export/xlsx'
 import { PdfReportTemplate, type PdfExportOptions } from '@/lib/export/pdf'
 import EmptyState from './EmptyState'
+import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting } from '@/lib/format/currency'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
@@ -117,17 +118,17 @@ export default function AkuntingLaporanClient({
     const lrRows = [
       { cells: ['PENDAPATAN', '', '', ''] },
       ...incomeItems.map((b: any): { cells: (string | number)[] } => ({
-        cells: ['', b.kategori_kode, b.kategori_nama, fmtRp(b.nominal_income)],
+        cells: ['', b.kategori_kode, b.kategori_nama, formatCurrencyAccounting(b.nominal_income)],
       })),
-      { cells: ['Total Income', '', '', fmtRp(income)], isTotal: true },
+      { cells: ['Total Income', '', '', formatCurrencyAccounting(income)], isTotal: true },
       { cells: ['', '', '', ''], isEmpty: true },
       { cells: ['BEBAN', '', '', ''] },
       ...expenseItems.map((b: any): { cells: (string | number)[] } => ({
-        cells: ['', b.kategori_kode, b.kategori_nama, fmtRp(b.nominal_expense)],
+        cells: ['', b.kategori_kode, b.kategori_nama, formatCurrencyAccounting(b.nominal_expense)],
       })),
-      { cells: ['Total Expense', '', '', fmtRp(expense)], isTotal: true },
+      { cells: ['Total Expense', '', '', formatCurrencyAccounting(expense)], isTotal: true },
       { cells: ['', '', '', ''], isEmpty: true },
-      { cells: ['LABA KOTOR', '', '', fmtRp(laba)], isTotal: true },
+      { cells: ['LABA KOTOR', '', '', formatCurrencyAccounting(laba)], isTotal: true },
     ]
     return {
       reportTitle: 'Laporan Keuangan',
@@ -222,14 +223,14 @@ export default function AkuntingLaporanClient({
                       {' '}{b.kategori_nama}
                     </td>
                     <td style={{ padding: '6px 0', textAlign: 'right', fontWeight: 700, color: '#22c55e' }}>
-                      {fmtRp(Number(b.nominal_income))}
+                      {formatCurrencyAccounting(Number(b.nominal_income))}
                     </td>
                   </tr>
                 ))}
                 <tr style={{ borderTop: '2px solid #22c55e' }}>
                   <td style={{ padding: '12px 0 4px', fontWeight: 700, fontSize: 14 }}>TOTAL INCOME</td>
                   <td style={{ padding: '12px 0 4px', textAlign: 'right', fontWeight: 800, color: '#22c55e', fontSize: 16 }}>
-                    {fmtRp(income)}
+                    {formatCurrencyAccounting(income)}
                   </td>
                 </tr>
               </tbody>
@@ -256,14 +257,14 @@ export default function AkuntingLaporanClient({
                       {' '}{b.kategori_nama}
                     </td>
                     <td style={{ padding: '6px 0', textAlign: 'right', fontWeight: 700, color: '#ef4444' }}>
-                      {fmtRp(Number(b.nominal_expense))}
+                      {formatCurrencyAccounting(Number(b.nominal_expense))}
                     </td>
                   </tr>
                 ))}
                 <tr style={{ borderTop: '2px solid #ef4444' }}>
                   <td style={{ padding: '12px 0 4px', fontWeight: 700, fontSize: 14 }}>TOTAL EXPENSE</td>
                   <td style={{ padding: '12px 0 4px', textAlign: 'right', fontWeight: 800, color: '#ef4444', fontSize: 16 }}>
-                    {fmtRp(expense)}
+                    {formatCurrencyAccounting(expense)}
                   </td>
                 </tr>
               </tbody>
@@ -279,7 +280,7 @@ export default function AkuntingLaporanClient({
               💰 LABA KOTOR
             </span>
             <span style={{ fontSize: 20, fontWeight: 800, color: laba >= 0 ? '#22c55e' : '#ef4444' }}>
-              {fmtRp(laba)}
+              {formatCurrencyAccounting(laba)}
             </span>
           </div>
         </div>
@@ -300,7 +301,7 @@ export default function AkuntingLaporanClient({
                         {c.metode === 'CASH' ? '💵' : c.metode === 'BANK' ? '🏦' : '📱'} {c.metode}
                       </td>
                       <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700, color: Number(c.cashflow) >= 0 ? '#22c55e' : '#ef4444' }}>
-                        {fmtRp(Number(c.cashflow))}
+                        {formatCurrencyAccounting(Number(c.cashflow))}
                       </td>
                     </tr>
                   ))}
@@ -326,7 +327,7 @@ export default function AkuntingLaporanClient({
                     <tr>
                       <td style={{ padding: '8px 0', color: '#f59e0b', fontStyle: 'italic' }}>⚠ Selisih (Aset - Equity)</td>
                       <td style={{ padding: '8px 0', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>
-                        {fmtRp(Number(neraca.selisih))}
+                        {formatCurrencyAccounting(Number(neraca.selisih))}
                       </td>
                     </tr>
                   )}
@@ -345,7 +346,7 @@ function SubRow({ label, value, color }: { label: string; value: number | string
     <tr>
       <td style={{ padding: '6px 0', color: '#94a3b8' }}>{label}</td>
       <td style={{ padding: '6px 0', textAlign: 'right', color, fontWeight: 600 }}>
-        {typeof value === 'number' ? fmtRp(value) : value}
+        {typeof value === 'number' ? formatCurrencyAccounting(value) : value}
       </td>
     </tr>
   )
@@ -356,7 +357,7 @@ function TotalRow({ label, value, color }: { label: string; value: number | stri
     <tr style={{ borderTop: '2px solid ' + color }}>
       <td style={{ padding: '10px 0 4px', fontWeight: 700, color, fontSize: 14 }}>{label}</td>
       <td style={{ padding: '10px 0 4px', textAlign: 'right', fontWeight: 800, color, fontSize: 16 }}>
-        {typeof value === 'number' ? fmtRp(value) : value}
+        {typeof value === 'number' ? formatCurrencyAccounting(value) : value}
       </td>
     </tr>
   )

@@ -39,6 +39,16 @@ export default async function TransaksiPage({
   if (isJNE && selectedKurirData) {
     let jneSql = 'SELECT * FROM jne_packing_list WHERE kurir_id = $1'
     let countSql = 'SELECT COUNT(*)::int as count FROM jne_packing_list WHERE kurir_id = $1'
+    let sumJneSql = `
+      SELECT COALESCE(SUM(amount), 0) AS subtotal_biaya,
+             COALESCE(SUM(discount + COALESCE(disc_others, 0)), 0) AS subtotal_diskon,
+             COALESCE(SUM(discount + COALESCE(disc_others, 0)), 0) AS subtotal_net_profit,
+             COALESCE(SUM(outstanding), 0) AS subtotal_outstanding,
+             COALESCE(SUM(insurance), 0) AS subtotal_asuransi,
+             COALESCE(SUM(vat_amount), 0) AS subtotal_ppn,
+             COUNT(*) FILTER (WHERE outstanding > 0) AS belum_lunas
+      FROM jne_packing_list WHERE kurir_id = $1
+    `
     const queryParams: any[] = [selectedKurirData.id]
 
     if (params.periode) {
@@ -49,20 +59,24 @@ export default async function TransaksiPage({
       queryParams.push(firstDay, lastDay)
       jneSql += ` AND tanggal >= $2 AND tanggal <= $3`
       countSql += ` AND tanggal >= $2 AND tanggal <= $3`
+      sumJneSql += ` AND tanggal >= $2 AND tanggal <= $3`
     }
 
     jneSql += ` ORDER BY tanggal DESC LIMIT ${pageSize} OFFSET ${offset}`
 
     let jneData: any[] = []
     let totalCount = 0
+    let jneSummary: any = null
 
     try {
-      const [dataRes, countRes] = await Promise.all([
+      const [dataRes, countRes, sumRes] = await Promise.all([
         query(jneSql, queryParams),
         query(countSql, queryParams),
+        query(sumJneSql, queryParams),
       ])
       jneData = dataRes.rows
       totalCount = countRes.rows[0]?.count || 0
+      jneSummary = sumRes.rows[0]
     } catch (e) {
       console.error('Error fetching JNE data:', e)
     }
@@ -76,6 +90,7 @@ export default async function TransaksiPage({
         kurirList={kurirList}
         filters={params}
         kurirInfo={selectedKurirData}
+        summary={jneSummary}
       />
     )
   }

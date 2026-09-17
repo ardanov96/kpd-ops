@@ -7,17 +7,10 @@ import {
   Tooltip, Legend, CartesianGrid,
 } from 'recharts'
 import type { LabaRugi } from '@/types'
+import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting } from '@/lib/format/currency'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
-
-const fmtShort = (n: number) => {
-  const abs = Math.abs(n)
-  if (abs >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}M`
-  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}jt`
-  if (abs >= 1_000) return `${(n / 1_000).toFixed(0)}rb`
-  return Math.round(n).toString()
-}
 
 const TIPE_COLOR: Record<string, string> = {
   MASUK: '#22c55e',
@@ -113,7 +106,7 @@ export default function AkuntingClient({
         }}>
           <strong style={{ color: '#3b82f6' }}>🔒 Periode {currentPeriode} sudah di-closing.</strong>
           <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
-            Laba: {fmtRp(Number(closingBulanIni.laba))} · Income: {fmtRp(Number(closingBulanIni.total_income))} · Expense: {fmtRp(Number(closingBulanIni.total_expense))}
+            Laba: {formatCurrencyAccounting(Number(closingBulanIni.laba))} · Income: {formatCurrencyAccounting(Number(closingBulanIni.total_income))} · Expense: {formatCurrencyAccounting(Number(closingBulanIni.total_expense))}
           </div>
         </div>
       ) : (
@@ -148,10 +141,10 @@ export default function AkuntingClient({
           <LineChart data={chartData}>
             <CartesianGrid stroke="#1e2433" strokeDasharray="3 3" />
             <XAxis dataKey="periode" stroke="#64748b" fontSize={12} />
-            <YAxis stroke="#64748b" fontSize={12} tickFormatter={fmtShort} />
+            <YAxis stroke="#64748b" fontSize={12} tickFormatter={formatCurrencyShort} />
             <Tooltip
               contentStyle={{ background: '#0d111c', border: '1px solid #1e2433', borderRadius: 8, color: '#e2e8f0' }}
-              formatter={(v: any) => fmtRp(Number(v))}
+              formatter={(v: any) => formatCurrencyAccounting(Number(v))}
             />
             <Legend wrapperStyle={{ fontSize: 12, color: '#94a3b8' }} />
             <Line type="monotone" dataKey="income" name="Income" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} />
@@ -175,10 +168,10 @@ export default function AkuntingClient({
               <BarChart data={topExpense.map((b: any) => ({ name: b.kategori_kode, value: Number(b.nominal_expense) }))}>
                 <CartesianGrid stroke="#1e2433" strokeDasharray="3 3" />
                 <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
-                <YAxis stroke="#64748b" fontSize={11} tickFormatter={fmtShort} />
+                <YAxis stroke="#64748b" fontSize={11} tickFormatter={formatCurrencyShort} />
                 <Tooltip
                   contentStyle={{ background: '#0d111c', border: '1px solid #1e2433', borderRadius: 8, color: '#e2e8f0' }}
-                  formatter={(v: any) => fmtRp(Number(v))}
+                  formatter={(v: any) => formatCurrencyAccounting(Number(v))}
                 />
                 <Bar dataKey="value" fill="#ef4444" radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -203,7 +196,7 @@ export default function AkuntingClient({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                       <span style={{ color: TIPE_COLOR[t.tipe], fontWeight: 700 }}>
-                        {t.tipe === 'MASUK' ? '+' : '−'}{fmtRp(Number(t.nominal))}
+                        {t.tipe === 'MASUK' ? '+' : '−'}{formatCurrencyAccounting(Number(t.nominal))}
                       </span>
                       <span style={{ color: '#64748b', fontSize: 11 }}>
                         {SUMBER_LABEL[t.sumber] || t.sumber}
@@ -244,7 +237,7 @@ function KpiCard({ label, value, color, icon, isText }:
         {label}
       </div>
       <div style={{ fontSize: isText ? 22 : 16, fontWeight: 800, color }}>
-        {typeof value === 'number' ? fmtRp(value) : value}
+        {typeof value === 'number' ? formatCurrencyAccounting(value) : value}
       </div>
     </div>
   )

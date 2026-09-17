@@ -6,6 +6,7 @@ import type { TipeTransaksiKeuangan, TipeAkun, MetodeBayar, KategoriAkun, Transa
 import ViewFileButton from './ViewFileButton'
 import { useConfirm } from './ConfirmDialog'
 import { useToast } from './Toast'
+import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting } from '@/lib/format/currency'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
@@ -487,7 +488,7 @@ export default function AkuntingExpenseForm({
                     <td style={{
                       ...td(), fontWeight: 700, color: TIPE_COLOR[t.tipe],
                     }}>
-                      {t.tipe === 'MASUK' ? '+' : t.tipe === 'KELUAR' ? '−' : ''}{fmtRp(Number(t.nominal))}
+                      {t.tipe === 'MASUK' ? '+' : t.tipe === 'KELUAR' ? '−' : ''}{formatCurrencyAccounting(Number(t.nominal))}
                     </td>
                     <td style={{ ...td(), color: '#94a3b8' }}>{t.metode || '—'}</td>
                     <td style={{ ...td(), fontSize: 12, color: '#94a3b8', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

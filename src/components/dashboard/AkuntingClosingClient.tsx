@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from './Toast'
+import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting } from '@/lib/format/currency'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
@@ -47,7 +48,7 @@ export default function AkuntingClosingClient({
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Gagal closing')
-      showToast(`Periode ${periode} berhasil di-closing. Laba: ${fmtRp(Number(json.laba))}`)
+      showToast(`Periode ${periode} berhasil di-closing. Laba: ${formatCurrencyAccounting(Number(json.laba))}`)
       setConfirmInput('')
       router.refresh()
     } catch (e: any) {
@@ -132,7 +133,7 @@ export default function AkuntingClosingClient({
           <span style={{ fontSize: 22 }}>⚠️</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <strong style={{ color: '#ef4444', fontSize: 14 }}>
-              Termasuk Penalty Lion Parcel: {fmtRp(penaltyAmount)}
+              Termasuk Penalty Lion Parcel: {formatCurrencyAccounting(penaltyAmount)}
             </strong>
             <div style={{ fontSize: 12, color: '#fca5a5', marginTop: 2 }}>
               Omzet Lion bulan ini {'<'} Rp 3.000.000 → otomatis dipotong Rp 500.000 (kategori 5900 Beban Lain-lain).
@@ -223,10 +224,10 @@ export default function AkuntingClosingClient({
                 {history.map((h) => (
                   <tr key={h.id} style={{ borderTop: '1px solid #1e2433' }}>
                     <td style={{ padding: '10px 12px', fontWeight: 700 }}>{h.periode}</td>
-                    <td style={{ padding: '10px 12px', color: '#22c55e' }}>{fmtRp(Number(h.total_income))}</td>
-                    <td style={{ padding: '10px 12px', color: '#ef4444' }}>{fmtRp(Number(h.total_expense))}</td>
+                    <td style={{ padding: '10px 12px', color: '#22c55e' }}>{formatCurrencyAccounting(Number(h.total_income))}</td>
+                    <td style={{ padding: '10px 12px', color: '#ef4444' }}>{formatCurrencyAccounting(Number(h.total_expense))}</td>
                     <td style={{ padding: '10px 12px', fontWeight: 700, color: Number(h.laba) >= 0 ? '#3b82f6' : '#ef4444' }}>
-                      {fmtRp(Number(h.laba))}
+                      {formatCurrencyAccounting(Number(h.laba))}
                     </td>
                     <td style={{ padding: '10px 12px' }}>
                       {h.is_locked ? (
@@ -262,7 +263,7 @@ function PreviewCard({ label, value, color, icon, isText }:
         {label}
       </div>
       <div style={{ fontSize: isText ? 20 : 16, fontWeight: 800, color }}>
-        {isText ? value : fmtRp(value as number)}
+        {isText ? value : formatCurrencyAccounting(value as number)}
       </div>
     </div>
   )

@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import JnePackingListTable from './JnePackingListTable'
+import { formatCurrencyAccounting, formatCurrencyShort } from '@/lib/format/currency'
 
 export default function JneTransaksiWrapper({
-  data, totalCount, page, pageSize, kurirList, filters, kurirInfo,
+  data, totalCount, page, pageSize, kurirList, filters, kurirInfo, summary,
 }: {
   data: any[]
   totalCount: number
@@ -14,6 +15,15 @@ export default function JneTransaksiWrapper({
   kurirList: any[]
   filters: any
   kurirInfo: any
+  summary: {
+    subtotal_biaya: number
+    subtotal_diskon: number
+    subtotal_net_profit: number
+    subtotal_outstanding: number
+    subtotal_asuransi: number
+    subtotal_ppn: number
+    belum_lunas: number
+  } | null
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -31,6 +41,11 @@ export default function JneTransaksiWrapper({
     const params = new URLSearchParams(filters)
     params.set('page', String(p))
     router.push(`${pathname}?${params.toString()}`)
+  }
+
+  const s = summary || {
+    subtotal_biaya: 0, subtotal_diskon: 0, subtotal_net_profit: 0,
+    subtotal_outstanding: 0, subtotal_asuransi: 0, subtotal_ppn: 0, belum_lunas: 0,
   }
 
   return (
@@ -74,6 +89,45 @@ export default function JneTransaksiWrapper({
         <span style={{ marginLeft: 'auto', fontSize: 12, color: '#475569' }}>
           Hal {page} dari {totalPages || 1} · {totalCount} PL
         </span>
+      </div>
+
+      {/* Summary Cards - financial totals (JNE has no nama_produk/komoditas) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
+        <div className="card" style={{ padding: '18px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{ background: '#f9731620', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>💰</div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>Subtotal Biaya (Gross)</div>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#f97316' }}>{formatCurrencyAccounting(Number(s.subtotal_biaya))}</div>
+        </div>
+
+        <div className="card" style={{ padding: '18px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{ background: '#a855f720', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🏷️</div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>Subtotal Diskon</div>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#a855f7' }}>{formatCurrencyAccounting(Number(s.subtotal_diskon))}</div>
+        </div>
+
+        <div className="card" style={{ padding: '18px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{ background: '#22c55e20', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>💹</div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>Komisi Franchise</div>
+            <div style={{ fontSize: 10, color: '#475569' }}>(= Diskon)</div>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#22c55e' }}>{formatCurrencyAccounting(Number(s.subtotal_net_profit))}</div>
+        </div>
+
+        <div className="card" style={{ padding: '18px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{ background: s.belum_lunas > 0 ? '#ef444420' : '#64748b20', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>⚠️</div>
+            <div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>Outstanding</div>
+              <div style={{ fontSize: 10, color: '#475569' }}>{s.belum_lunas} PL belum lunas</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: s.belum_lunas > 0 ? '#ef4444' : '#64748b' }}>{formatCurrencyAccounting(Number(s.subtotal_outstanding))}</div>
+        </div>
       </div>
 
       <JnePackingListTable

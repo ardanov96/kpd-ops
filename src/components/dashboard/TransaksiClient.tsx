@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting } from '@/lib/format/currency'
 
 const fmt = (n: number) =>
   n >= 1_000_000 ? `Rp ${(n / 1_000_000).toFixed(1)}jt`
@@ -161,7 +162,7 @@ export default function TransaksiClient({
         <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX{filters.status ? ` · ${filters.status}` : ''}</div>
       </div>
     </div>
-    <div style={{ fontSize: 22, fontWeight: 800, color: '#f97316' }}>{fmtFull(summary.subtotalBiaya)}</div>
+    <div style={{ fontSize: 22, fontWeight: 800, color: '#f97316' }}>{formatCurrency(summary.subtotalBiaya)}</div>
   </div>
 
   <div className="card" style={{ padding: '18px 20px' }}>
@@ -172,7 +173,7 @@ export default function TransaksiClient({
         <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX</div>
       </div>
     </div>
-    <div style={{ fontSize: 22, fontWeight: 800, color: '#a855f7' }}>{fmtFull(summary.subtotalDiskon)}</div>
+    <div style={{ fontSize: 22, fontWeight: 800, color: '#a855f7' }}>{formatCurrency(summary.subtotalDiskon)}</div>
   </div>
 
   <div className="card" style={{ padding: '18px 20px' }}>
@@ -183,7 +184,7 @@ export default function TransaksiClient({
         <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX</div>
       </div>
     </div>
-    <div style={{ fontSize: 22, fontWeight: 800, color: '#06b6d4' }}>{fmtFull(summary.subtotalDiskonAsuransi)}</div>
+    <div style={{ fontSize: 22, fontWeight: 800, color: '#06b6d4' }}>{formatCurrency(summary.subtotalDiskonAsuransi)}</div>
   </div>
 
 </div>
@@ -199,7 +200,7 @@ export default function TransaksiClient({
         <div style={{ fontSize: 10, color: '#475569' }}>Booking + Asuransi + Fwd Rate</div>
       </div>
     </div>
-    <div style={{ fontSize: 22, fontWeight: 800, color: '#22c55e' }}>{fmtFull(summary.subtotalNetProfit)}</div>
+    <div style={{ fontSize: 22, fontWeight: 800, color: '#22c55e' }}>{formatCurrency(summary.subtotalNetProfit)}</div>
   </div>
 
   <div className="card" style={{ padding: '18px 20px' }}>
@@ -260,7 +261,7 @@ export default function TransaksiClient({
     </div>
     <div style={{ textAlign: 'right' }}>
       <div style={{ fontSize: 11, color: '#475569' }}>Total Omzet</div>
-      <div style={{ fontSize: 20, fontWeight: 800, color: '#f97316' }}>{fmtFull(summary.totalOmzetKomoditasTop3)}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: '#f97316' }}>{formatCurrency(summary.totalOmzetKomoditasTop3)}</div>
     </div>
   </div>
 
@@ -287,7 +288,7 @@ export default function TransaksiClient({
                   <span style={{ fontSize: 11, color: '#64748b' }}>· {count}×</span>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#f97316' }}>{fmtFull(omzet)}</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#f97316' }}>{formatCurrency(omzet)}</div>
                   <div style={{ fontSize: 10, color: '#475569' }}>{shareOfAll}% dari total</div>
                 </div>
               </div>
@@ -351,29 +352,29 @@ export default function TransaksiClient({
 
                   {/* ✅ Biaya Asuransi */}
                   <td style={{ padding: '9px 14px', color: '#06b6d4', whiteSpace: 'nowrap' }}>
-                    {tx.biaya_asuransi ? fmt(tx.biaya_asuransi) : '—'}
+                    {tx.biaya_asuransi ? formatCurrencyShort(tx.biaya_asuransi) : '—'}
                   </td>
 
-                  <td style={{ padding: '9px 14px', fontWeight: 700, color: '#f97316', whiteSpace: 'nowrap' }}>{fmt(tx.total_biaya || 0)}</td>
+                  <td style={{ padding: '9px 14px', fontWeight: 700, color: '#f97316', whiteSpace: 'nowrap' }}>{formatCurrencyShort(tx.total_biaya || 0)}</td>
 
                   {/* ✅ Potongan */}
                   <td style={{ padding: '9px 14px', color: '#ef4444', whiteSpace: 'nowrap' }}>
-                    {tx.potongan ? fmt(tx.potongan) : '—'}
+                    {tx.potongan ? formatCurrencyShort(tx.potongan) : '—'}
                   </td>
 
                   {/* ✅ Diskon Booking */}
                   <td style={{ padding: '9px 14px', color: '#a855f7', whiteSpace: 'nowrap' }}>
-                    {tx.diskon_booking ? fmt(tx.diskon_booking) : '—'}
+                    {tx.diskon_booking ? formatCurrencyShort(tx.diskon_booking) : '—'}
                   </td>
 
                   {/* ✅ Diskon Asuransi */}
                   <td style={{ padding: '9px 14px', color: '#a855f7', whiteSpace: 'nowrap' }}>
-                    {tx.diskon_asuransi ? fmt(tx.diskon_asuransi) : '—'}
+                    {tx.diskon_asuransi ? formatCurrencyShort(tx.diskon_asuransi) : '—'}
                   </td>
 
                   {/* ✅ Diskon Forward Rate */}
                   <td style={{ padding: '9px 14px', color: '#a855f7', whiteSpace: 'nowrap' }}>
-                    {tx.diskon_forward_rate ? fmt(tx.diskon_forward_rate) : '—'}
+                    {tx.diskon_forward_rate ? formatCurrencyShort(tx.diskon_forward_rate) : '—'}
                   </td>
 
                   <td style={{ padding: '9px 14px' }}>

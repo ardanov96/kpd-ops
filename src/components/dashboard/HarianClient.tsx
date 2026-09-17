@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   BarChart, Bar, Cell, Legend,
 } from 'recharts'
+import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting } from '@/lib/format/currency'
 
 // ─── Types ─────────────────────────────────────────────────────
 type SummaryRow = {
@@ -332,15 +333,15 @@ export default function HarianClient({
         />
         <KpiCard
           label="Omzet Hari Ini"
-          value={fmt(todayData.total_omzet)}
-          sub={fmtFull(todayData.total_omzet)}
+          value={formatCurrencyShort(todayData.total_omzet)}
+          sub={formatCurrency(todayData.total_omzet)}
           icon="💰"
           color="#22c55e"
           delta={calcDelta(todayData.total_omzet, lastWeek.total_omzet)}
         />
         <KpiCard
           label="Net Omzet"
-          value={fmt(todayData.net_omzet)}
+          value={formatCurrencyShort(todayData.net_omzet)}
           sub="Setelah potongan"
           icon="📊"
           color="#3b82f6"
@@ -372,7 +373,7 @@ export default function HarianClient({
                   background: '#0f172a', border: '1px solid #2d3748',
                   borderRadius: 8, fontSize: 12,
                 }}
-                formatter={(v: number) => fmtFull(v)}
+                formatter={(v: number) => formatCurrency(v)}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Line type="monotone" dataKey="Omzet" stroke="#f97316" strokeWidth={2} dot={{ r: 4 }} />
@@ -397,7 +398,7 @@ export default function HarianClient({
                   background: '#0f172a', border: '1px solid #2d3748',
                   borderRadius: 8, fontSize: 12,
                 }}
-                formatter={(v: number) => fmtFull(v)}
+                formatter={(v: number) => formatCurrency(v)}
               />
               <Bar dataKey="total_omzet" radius={[0, 6, 6, 0]}>
                 {topKurir.map((k, i) => (
@@ -476,7 +477,7 @@ export default function HarianClient({
                         color: tx.jenis_kiriman === 'COD' ? '#ef4444' : '#3b82f6',
                       }}>{tx.jenis_kiriman}</span>
                     </td>
-                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{fmt(tx.total_biaya)}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{formatCurrencyShort(tx.total_biaya)}</td>
                     <td style={tdStyle}><StatusBadge status={tx.status} /></td>
                   </tr>
                 ))

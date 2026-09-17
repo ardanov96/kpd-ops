@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart, Line, Cell,
 } from 'recharts'
+import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting } from '@/lib/format/currency'
 
 const fmt = (n: number) =>
   n >= 1_000_000 ? `Rp ${(n / 1_000_000).toFixed(1)}jt`
@@ -253,13 +254,13 @@ export default function AnalitikClient({
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                       <td style={{ padding: '10px 16px', fontWeight: 700, color: '#f1f5f9' }}>{d.periode}</td>
                       <td style={{ padding: '10px 16px', color: '#3b82f6', fontWeight: 700 }}>{d.paket}</td>
-                      <td style={{ padding: '10px 16px', color: '#f97316', fontWeight: 700 }}>{fmtRpFormal(d.omzet)}</td>
-                      <td style={{ padding: '10px 16px', color: '#22c55e', fontWeight: 700 }}>{fmtRpFormal(d.diskon)}</td>
+                      <td style={{ padding: '10px 16px', color: '#f97316', fontWeight: 700 }}>{formatCurrency(d.omzet)}</td>
+                      <td style={{ padding: '10px 16px', color: '#22c55e', fontWeight: 700 }}>{formatCurrency(d.diskon)}</td>
                       <td style={{ padding: '10px 16px', color: d.penalty > 0 ? '#ef4444' : '#64748b', fontWeight: 700 }}>
-                        {d.penalty > 0 ? fmtRpFormal(-d.penalty) : '—'}
+                        {d.penalty > 0 ? formatCurrency(-d.penalty) : '—'}
                       </td>
-                      <td style={{ padding: '10px 16px', color: d.netProfit < 0 ? '#ef4444' : d.penalty > 0 ? '#f97316' : '#22c55e', fontWeight: 700 }} title={`Komisi ${fmtRpFormal(d.diskon)}${d.penalty > 0 ? ` − Penalty ${fmtRpFormal(d.penalty)}` : ''}`}>
-                        {fmtRpFormal(d.netProfit)}
+                      <td style={{ padding: '10px 16px', color: d.netProfit < 0 ? '#ef4444' : d.penalty > 0 ? '#f97316' : '#22c55e', fontWeight: 700 }} title={`Komisi ${formatCurrency(d.diskon)}${d.penalty > 0 ? ` − Penalty ${formatCurrency(d.penalty)}` : ''}`}>
+                        {formatCurrency(d.netProfit)}
                       </td>
                       <td style={{ padding: '10px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -285,9 +286,9 @@ export default function AnalitikClient({
                 <BarChart data={periodeData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e2433" />
                   <XAxis dataKey="periode" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tickFormatter={v => fmt(v)} tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} width={65} />
+                  <YAxis tickFormatter={v => formatCurrencyShort(v)} tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} width={65} />
                   <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1e2433', borderRadius: 8, fontSize: 12 }}
-                    formatter={(v: number) => [fmt(v), 'Omzet']} labelStyle={{ color: '#94a3b8' }} />
+                    formatter={(v: number) => [formatCurrencyShort(v), 'Omzet']} labelStyle={{ color: '#94a3b8' }} />
                   <Bar dataKey="omzet" fill={accentColor} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -354,7 +355,7 @@ export default function AnalitikClient({
                   }}>{i + 1}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.kota}</div>
-                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>Omzet: {fmt(k.omzet)}</div>
+                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>Omzet: {formatCurrencyShort(k.omzet)}</div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 800, color: accentColor }}>{k.jumlah}</div>
@@ -398,7 +399,7 @@ export default function AnalitikClient({
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: 11, color: '#475569' }}>{b.pct}% dari total</span>
-                    <span style={{ fontSize: 11, color: '#64748b' }}>Omzet: {fmt(b.omzet)}</span>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>Omzet: {formatCurrencyShort(b.omzet)}</span>
                   </div>
                 </div>
               ))}
@@ -428,7 +429,7 @@ export default function AnalitikClient({
                     <div style={{ fontSize: 11, color: isWeekend ? '#f59e0b' : '#94a3b8', marginBottom: 8, fontWeight: 600 }}>{h.hari}</div>
                     <div style={{ fontSize: 24, fontWeight: 800, color: intensity > 0.3 ? '#f1f5f9' : accentColor, marginBottom: 4 }}>{h.jumlah}</div>
                     <div style={{ fontSize: 10, color: '#64748b' }}>paket</div>
-                    <div style={{ fontSize: 10, color: '#475569', marginTop: 4 }}>{fmt(h.omzet)}</div>
+                    <div style={{ fontSize: 10, color: '#475569', marginTop: 4 }}>{formatCurrencyShort(h.omzet)}</div>
                   </div>
                 )
               })}
@@ -441,9 +442,9 @@ export default function AnalitikClient({
               <BarChart data={heatmapData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2433" />
                 <XAxis dataKey="hari" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tickFormatter={v => fmt(v)} tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} width={65} />
+                <YAxis tickFormatter={v => formatCurrencyShort(v)} tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} width={65} />
                 <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1e2433', borderRadius: 8, fontSize: 12 }}
-                  formatter={(v: number) => [fmt(v), 'Omzet']} labelStyle={{ color: '#94a3b8' }} />
+                  formatter={(v: number) => [formatCurrencyShort(v), 'Omzet']} labelStyle={{ color: '#94a3b8' }} />
                 <Bar dataKey="omzet" radius={[4, 4, 0, 0]}>
                   {heatmapData.map((_, i) => (
                     <Cell key={i} fill={i === 0 || i === 6 ? '#f59e0b' : accentColor} />

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts'
+import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting } from '@/lib/format/currency'
 
 const num = (v: any): number => {
   if (v === null || v === undefined || v === '') return 0
@@ -9,25 +10,9 @@ const num = (v: any): number => {
   return isNaN(n) ? 0 : n
 }
 
-const fmt = (raw: any) => {
-  const n = num(raw)
-  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)}M`
-  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1)}jt`
-  if (n >= 1_000) return `Rp ${(n / 1_000).toFixed(0)}rb`
-  return `Rp ${n.toLocaleString('id-ID')}`
-}
-
 // Penalty Lion Parcel mulai berlaku April 2024 (masa probation).
 // Sinkron dengan AnalitikClient.tsx dan migration 018.
 const LION_PENALTY_START_PERIODE = '2024-04'
-
-const fmtFull = (raw: any) => {
-  const n = num(raw)
-  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)}M`
-  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(2)}jt`
-  if (n >= 1_000) return `Rp ${(n / 1_000).toFixed(0)}rb`
-  return `Rp ${n.toLocaleString('id-ID')}`
-}
 
 const STATUS_COLOR: Record<string, string> = { POD: '#22c55e', CNX: '#ef4444', PENDING: '#f59e0b', TRANSIT: '#3b82f6' }
 
@@ -312,10 +297,10 @@ export default function OverviewClient({
       {/* KPI */}
       {/* KPI Baris 1 */}
 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
-  <KpiCard label="Total Omzet" value={fmt(stats.totalOmzet)} sub={`Diskon: ${fmt(stats.totalDiskon)}`} icon="💰" color="#f97316" />
+  <KpiCard label="Total Omzet" value={formatCurrencyShort(stats.totalOmzet)} sub={`Diskon: ${formatCurrencyShort(stats.totalDiskon)}`} icon="💰" color="#f97316" />
   <KpiCard label="Total Kiriman" value={`${filteredGrandTotal.length} paket`} sub={`${stats.totalKoli} koli`} icon="📦" color="#3b82f6" />
   <KpiCard label="POD Rate" value={`${stats.podRate}%`} sub={`${stats.podCount} berhasil terkirim`} icon="✅" color="#22c55e" />
-  <KpiCard label="Total Diskon" value={fmt(stats.totalDiskon)} sub={`Rata ${fmt(filteredGrandTotal.length > 0 ? Math.round(stats.totalDiskon / filteredGrandTotal.length) : 0)}/paket`} icon="🏷️" color="#a855f7" />
+  <KpiCard label="Total Diskon" value={formatCurrencyShort(stats.totalDiskon)} sub={`Rata ${formatCurrencyShort(filteredGrandTotal.length > 0 ? Math.round(stats.totalDiskon / filteredGrandTotal.length) : 0)}/paket`} icon="🏷️" color="#a855f7" />
 </div>
 
 {/* KPI Baris 2 */}
@@ -324,9 +309,9 @@ export default function OverviewClient({
   {/* Net Profit */}
   <KpiCard
     label="Net Profit"
-    value={fmt(stats.netProfit)}
+    value={formatCurrencyShort(stats.netProfit)}
     sub={stats.totalPenalty > 0
-      ? `Komisi Franchise − Penalty ${fmt(stats.totalPenalty)}`
+      ? `Komisi Franchise − Penalty ${formatCurrencyShort(stats.totalPenalty)}`
       : "Komisi Franchise (Booking + Asuransi + Fwd Rate, excl. CNX)"}
     icon="💹"
     color={stats.totalPenalty > 0 ? "#ef4444" : "#22c55e"}
@@ -335,7 +320,7 @@ export default function OverviewClient({
   {/* Total Penalty */}
   <KpiCard
     label="Total Penalty"
-    value={fmt(stats.totalPenalty)}
+    value={formatCurrencyShort(stats.totalPenalty)}
     sub={stats.penaltyCount > 0
       ? `${stats.penaltyCount} bulan × Rp 500rb — Lion Parcel omzet < 3jt (aktif s/d Apr 2024)`
       : "Tidak ada penalty aktif (semua bulan ≥ 3jt)"}
@@ -421,7 +406,7 @@ export default function OverviewClient({
                     <div style={{ width: 10, height: 10, borderRadius: '50%', background: k.warna || '#64748b' }} />
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{k.nama}</span>
                   </div>
-                  <span style={{ fontSize: 13, color: k.warna || '#94a3b8', fontWeight: 700 }}>{num(k.paket)} paket · {fmt(k.omzet)}</span>
+                  <span style={{ fontSize: 13, color: k.warna || '#94a3b8', fontWeight: 700 }}>{num(k.paket)} paket · {formatCurrencyShort(k.omzet)}</span>
                 </div>
                 <MiniBar value={k.omzet} max={maxKurirOmzet} color={k.warna || '#64748b'} />
               </div>
@@ -444,7 +429,7 @@ export default function OverviewClient({
                     <span style={{ fontSize: 13, fontWeight: 700 }}>{count} paket ({pct}%)</span>
                   </div>
                   <MiniBar value={count} max={filteredGrandTotal.length} color={STATUS_COLOR[status]} />
-                  <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>Omzet: {fmt(omzet)}</div>
+                  <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>Omzet: {formatCurrencyShort(omzet)}</div>
                 </div>
               )
             })}
@@ -476,7 +461,7 @@ export default function OverviewClient({
                       </td>
                       <td style={{ padding: '9px 12px', color: '#94a3b8' }}>{tx.nama_produk || '—'}</td>
                       <td style={{ padding: '9px 12px', color: '#64748b' }}>{fmtBerat(tx.berat_kena_biaya)}</td>
-                      <td style={{ padding: '9px 12px', fontWeight: 700, color: '#f97316' }}>{fmt(tx.total_biaya || 0)}</td>
+                      <td style={{ padding: '9px 12px', fontWeight: 700, color: '#f97316' }}>{formatCurrencyShort(tx.total_biaya || 0)}</td>
                       <td style={{ padding: '9px 12px' }}>
                         <span style={{ background: (STATUS_COLOR[tx.status] || '#64748b') + '20', color: STATUS_COLOR[tx.status] || '#64748b', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
                           {tx.status}
@@ -510,10 +495,10 @@ export default function OverviewClient({
                 <BarChart data={stats.dailyTrend} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e2433" />
                   <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tickFormatter={v => fmt(v)} tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} width={70} />
+                  <YAxis tickFormatter={v => formatCurrencyShort(v)} tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} width={70} />
                   <Tooltip
                     contentStyle={{ background: '#111827', border: '1px solid #1e2433', borderRadius: 8, fontSize: 12 }}
-                    formatter={(v: number) => [fmtFull(v), 'Omzet']}
+                    formatter={(v: number) => [formatCurrency(v), 'Omzet']}
                     labelStyle={{ color: '#94a3b8' }}
                   />
                   <Bar dataKey="omzet" fill={selectedKurirInfo?.warna || 'url(#barGrad)'} radius={[4, 4, 0, 0]} />
@@ -582,9 +567,9 @@ export default function OverviewClient({
                     <div style={{ display: 'grid', gridTemplateColumns: row.penalty > 0 ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: 8 }}>
                       {[
                         { l: 'Paket', v: row.total_paket, c: row.kurir_warna || '#f97316' },
-                        { l: 'Omzet', v: fmt(row.total_omzet), c: row.kurir_warna || '#f97316' },
-                        { l: 'Diskon', v: fmt(row.total_diskon), c: row.kurir_warna || '#f97316' },
-                        ...(row.penalty > 0 ? [{ l: 'Penalty', v: fmt(row.penalty), c: '#ef4444' }] : [])
+                        { l: 'Omzet', v: formatCurrencyShort(row.total_omzet), c: row.kurir_warna || '#f97316' },
+                        { l: 'Diskon', v: formatCurrencyShort(row.total_diskon), c: row.kurir_warna || '#f97316' },
+                        ...(row.penalty > 0 ? [{ l: 'Penalty', v: formatCurrencyShort(row.penalty), c: '#ef4444' }] : [])
                       ].map(x => (
                         <div key={x.l} style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: 14, fontWeight: 700, color: x.c }}>{x.v}</div>
