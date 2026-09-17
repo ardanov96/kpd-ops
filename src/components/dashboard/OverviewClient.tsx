@@ -17,6 +17,10 @@ const fmt = (raw: any) => {
   return `Rp ${n.toLocaleString('id-ID')}`
 }
 
+// Penalty Lion Parcel mulai berlaku April 2024 (masa probation).
+// Sinkron dengan AnalitikClient.tsx dan migration 018.
+const LION_PENALTY_START_PERIODE = '2024-04'
+
 const fmtFull = (raw: any) => {
   const n = num(raw)
   if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)}M`
@@ -107,6 +111,27 @@ export default function OverviewClient({
   const selectedKurirInfo = kurirOptions.find(k => k.kode === selectedKurir)
 
   const stats = useMemo(() => {
+  // Penalty Lion Parcel: dihitung on-the-fly dari raw transaksi agar
+  // konsisten dengan AnalitikClient (tidak bergantung pada v_summary_bulanan
+  // yang mungkin belum terupdate jika migration 018 belum dijalankan).
+  // Aturan: Lion omzet > 0 dan < 3jt per bulan, mulai April 2024 → 500rb.
+  const lionOmzetByPeriode: Record<string, number> = {}
+  filteredGrandTotal.forEach(t => {
+    if (t.kurir?.kode === 'LION') {
+      const p = String(t.tanggal || '').slice(0, 7)
+      if (!p || p < LION_PENALTY_START_PERIODE) return
+      lionOmzetByPeriode[p] = (lionOmzetByPeriode[p] || 0) + num(t.total_biaya)
+    }
+  })
+  let totalPenalty = 0
+  let penaltyCount = 0
+  for (const lionOmzet of Object.values(lionOmzetByPeriode)) {
+    if (lionOmzet > 0 && lionOmzet < 3000000) {
+      totalPenalty += 500000
+      penaltyCount++
+    }
+  }
+
   const totalOmzet = filteredGrandTotal.reduce((s, d) => s + num(d.total_biaya), 0)
   const totalDiskon = filteredGrandTotal.reduce((s, d) => s + num(d.diskon_booking), 0)
   const totalKoli = filteredGrandTotal.reduce((s, d) => s + num(d.koli), 0)
@@ -136,8 +161,6 @@ export default function OverviewClient({
   // ✅ Kalkulasi baru — harus di dalam useMemo
   const nonCNX = filteredGrandTotal.filter(d => d.status !== 'CNX')
 
-  const totalPenalty = filteredSummary.reduce((s, d) => s + num(d.penalty), 0)
-  const penaltyCount = filteredSummary.reduce((s, d) => s + (num(d.penalty) > 0 ? 1 : 0), 0)
   const netProfit = nonCNX.reduce((s, d) =>
     s + num(d.diskon_booking) + num(d.diskon_asuransi) + num(d.diskon_forward_rate), 0) - totalPenalty
 
