@@ -1,6 +1,8 @@
 import { query } from '@/lib/db'
 import OverviewClient from '@/components/dashboard/OverviewClient'
 
+export const dynamic = 'force-dynamic'
+
 export default async function DashboardPage() {
   let summary: any[] = []
   let recentTx: any[] = []
