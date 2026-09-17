@@ -67,3 +67,28 @@ export async function query<T extends QueryResultRow = any>(
 ): Promise<QueryResult<T>> {
   return pool.query<T>(text, params)
 }
+
+/**
+ * Jalankan callback di dalam transaksi database. Auto COMMIT jika sukses,
+ * ROLLBACK jika error, dan RELEASE client ke pool di finally.
+ *
+ * Catatan: connection pool Neon max=10. Jika callback panjang dan pool
+ * sibuk, transaksi bisa timeout. Gunakan untuk operasi batch yang harus
+ * atomik (mis. upload XLSX).
+ */
+export async function withTransaction<T>(
+  fn: (run: <R extends QueryResultRow = any>(text: string, params?: any[]) => Promise<QueryResult<R>>) => Promise<T>
+): Promise<T> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const result = await fn((text, params) => client.query(text, params))
+    await client.query('COMMIT')
+    return result
+  } catch (e) {
+    try { await client.query('ROLLBACK') } catch {}
+    throw e
+  } finally {
+    client.release()
+  }
+}

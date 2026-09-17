@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/db'
+import { query, withTransaction } from '@/lib/db'
 import { parseXLSX } from '@/lib/parsers/xlsxParser'
 
 export async function POST(req: NextRequest) {
@@ -75,61 +75,69 @@ export async function POST(req: NextRequest) {
 
     let successRows = 0
 
-    for (const row of rows) {
-      try {
-        await query(
-          `INSERT INTO transaksi (
-            outlet_id, kurir_id, nomor_stt, tanggal, jenis_kiriman, kota_tujuan, kecamatan_tujuan,
-            nama_produk, komoditas, koli, berat_volume, berat_kotor, berat_kena_biaya,
-            publish_rate, shipping_surcharge, forward_rate, biaya_asuransi, biaya_cod,
-            total_sebelum_potongan, potongan, total_biaya, total_cod, diskon_booking,
-            diskon_pickup, diskon_asuransi, diskon_forward_rate, bm, ppn, pph, status, raw_data
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-            $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31
+    try {
+      successRows = await withTransaction(async (run) => {
+        let count = 0
+        for (const row of rows) {
+          await run(
+            `INSERT INTO transaksi (
+              outlet_id, kurir_id, nomor_stt, tanggal, jenis_kiriman, kota_tujuan, kecamatan_tujuan,
+              nama_produk, komoditas, koli, berat_volume, berat_kotor, berat_kena_biaya,
+              publish_rate, shipping_surcharge, forward_rate, biaya_asuransi, biaya_cod,
+              total_sebelum_potongan, potongan, total_biaya, total_cod, diskon_booking,
+              diskon_pickup, diskon_asuransi, diskon_forward_rate, bm, ppn, pph, status, raw_data
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+              $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31
+            )
+            ON CONFLICT (kurir_id, nomor_stt) DO UPDATE SET
+              tanggal = EXCLUDED.tanggal,
+              jenis_kiriman = EXCLUDED.jenis_kiriman,
+              kota_tujuan = EXCLUDED.kota_tujuan,
+              kecamatan_tujuan = EXCLUDED.kecamatan_tujuan,
+              nama_produk = EXCLUDED.nama_produk,
+              komoditas = EXCLUDED.komoditas,
+              koli = EXCLUDED.koli,
+              berat_volume = EXCLUDED.berat_volume,
+              berat_kotor = EXCLUDED.berat_kotor,
+              berat_kena_biaya = EXCLUDED.berat_kena_biaya,
+              publish_rate = EXCLUDED.publish_rate,
+              shipping_surcharge = EXCLUDED.shipping_surcharge,
+              forward_rate = EXCLUDED.forward_rate,
+              biaya_asuransi = EXCLUDED.biaya_asuransi,
+              biaya_cod = EXCLUDED.biaya_cod,
+              total_sebelum_potongan = EXCLUDED.total_sebelum_potongan,
+              potongan = EXCLUDED.potongan,
+              total_biaya = EXCLUDED.total_biaya,
+              total_cod = EXCLUDED.total_cod,
+              diskon_booking = EXCLUDED.diskon_booking,
+              diskon_pickup = EXCLUDED.diskon_pickup,
+              diskon_asuransi = EXCLUDED.diskon_asuransi,
+              diskon_forward_rate = EXCLUDED.diskon_forward_rate,
+              bm = EXCLUDED.bm,
+              ppn = EXCLUDED.ppn,
+              pph = EXCLUDED.pph,
+              status = EXCLUDED.status,
+              raw_data = EXCLUDED.raw_data`,
+            [
+              outletId, kurirData.id, row.nomor_stt, row.tanggal, row.jenis_kiriman, row.kota_tujuan, row.kecamatan_tujuan,
+              row.nama_produk, row.komoditas, row.koli, row.berat_volume, row.berat_kotor, row.berat_kena_biaya,
+              row.publish_rate, row.shipping_surcharge, row.forward_rate, row.biaya_asuransi, row.biaya_cod,
+              row.total_sebelum_potongan, row.potongan, row.total_biaya, row.total_cod, row.diskon_booking,
+              row.diskon_pickup, row.diskon_asuransi, row.diskon_forward_rate, row.bm, row.ppn, row.pph, row.status,
+              JSON.stringify(row.raw_data || {})
+            ]
           )
-          ON CONFLICT (kurir_id, nomor_stt) DO UPDATE SET
-            tanggal = EXCLUDED.tanggal,
-            jenis_kiriman = EXCLUDED.jenis_kiriman,
-            kota_tujuan = EXCLUDED.kota_tujuan,
-            kecamatan_tujuan = EXCLUDED.kecamatan_tujuan,
-            nama_produk = EXCLUDED.nama_produk,
-            komoditas = EXCLUDED.komoditas,
-            koli = EXCLUDED.koli,
-            berat_volume = EXCLUDED.berat_volume,
-            berat_kotor = EXCLUDED.berat_kotor,
-            berat_kena_biaya = EXCLUDED.berat_kena_biaya,
-            publish_rate = EXCLUDED.publish_rate,
-            shipping_surcharge = EXCLUDED.shipping_surcharge,
-            forward_rate = EXCLUDED.forward_rate,
-            biaya_asuransi = EXCLUDED.biaya_asuransi,
-            biaya_cod = EXCLUDED.biaya_cod,
-            total_sebelum_potongan = EXCLUDED.total_sebelum_potongan,
-            potongan = EXCLUDED.potongan,
-            total_biaya = EXCLUDED.total_biaya,
-            total_cod = EXCLUDED.total_cod,
-            diskon_booking = EXCLUDED.diskon_booking,
-            diskon_pickup = EXCLUDED.diskon_pickup,
-            diskon_asuransi = EXCLUDED.diskon_asuransi,
-            diskon_forward_rate = EXCLUDED.diskon_forward_rate,
-            bm = EXCLUDED.bm,
-            ppn = EXCLUDED.ppn,
-            pph = EXCLUDED.pph,
-            status = EXCLUDED.status,
-            raw_data = EXCLUDED.raw_data`,
-          [
-            outletId, kurirData.id, row.nomor_stt, row.tanggal, row.jenis_kiriman, row.kota_tujuan, row.kecamatan_tujuan,
-            row.nama_produk, row.komoditas, row.koli, row.berat_volume, row.berat_kotor, row.berat_kena_biaya,
-            row.publish_rate, row.shipping_surcharge, row.forward_rate, row.biaya_asuransi, row.biaya_cod,
-            row.total_sebelum_potongan, row.potongan, row.total_biaya, row.total_cod, row.diskon_booking,
-            row.diskon_pickup, row.diskon_asuransi, row.diskon_forward_rate, row.bm, row.ppn, row.pph, row.status,
-            JSON.stringify(row.raw_data || {})
-          ]
-        )
-        successRows++
-      } catch (e) {
-        console.error(`Row insert failed for STT ${row.nomor_stt}:`, e)
-      }
+          count++
+        }
+        return count
+      })
+    } catch (e: any) {
+      console.error('[upload] transaksi insert rolled back:', e?.message)
+      return NextResponse.json({
+        error: `Insert transaksi gagal, semua baris di-rollback: ${e?.message}`,
+        rolledBack: true,
+      }, { status: 500 })
     }
 
     let aggregatePeriods: string[] = []
