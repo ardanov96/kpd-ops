@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { query } from '@/lib/db'
+import { verifySession } from '@/lib/session'
 import type { UserRole } from '@/types'
 
 export interface AuthGuard {
@@ -20,21 +21,16 @@ export interface AuthGuard {
 export async function requireAuth(_req: NextRequest): Promise<AuthGuard | NextResponse> {
   try {
     const cookieStore = await cookies()
-    const sessionCookie = cookieStore.get('session_user')
+    const p = verifySession<any>(cookieStore.get('session_user')?.value)
 
-    if (sessionCookie?.value) {
-      try {
-        const p = JSON.parse(sessionCookie.value)
-        if (p?.id) {
-          return {
-            user: { id: p.id, email: p.email },
-            profile: { id: p.id, nama: p.nama, role: p.role as UserRole, outlet_id: p.outlet_id },
-          }
-        }
-      } catch {}
+    if (p?.id) {
+      return {
+        user: { id: p.id, email: p.email },
+        profile: { id: p.id, nama: p.nama, role: p.role as UserRole, outlet_id: p.outlet_id },
+      }
     }
 
-    // Fallback query profile pertama jika ada database_url
+    // Fallback query profile pertama jika ada database_url (untuk dev/setup)
     if (process.env.DATABASE_URL) {
       const fallbackProfile = await query(
         'SELECT id, email, nama, role, outlet_id FROM profiles ORDER BY created_at ASC LIMIT 1'

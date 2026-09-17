@@ -1,22 +1,14 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { query } from '@/lib/db'
+import { verifySession } from '@/lib/session'
 import Sidebar from '@/components/Sidebar'
 import MobileShell from '@/components/dashboard/MobileShell'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
-  const sessionCookie = cookieStore.get('session_user')
-
-  let user: any = null
-  let profile: any = null
-
-  if (sessionCookie?.value) {
-    try {
-      profile = JSON.parse(sessionCookie.value)
-      user = { id: profile.id, email: profile.email }
-    } catch {}
-  }
+  let profile = verifySession<any>(cookieStore.get('session_user')?.value)
+  let user: any = profile ? { id: profile.id, email: profile.email } : null
 
   if (!profile && process.env.DATABASE_URL) {
     try {

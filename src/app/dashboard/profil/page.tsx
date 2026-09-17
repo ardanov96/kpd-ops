@@ -1,21 +1,13 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { query } from '@/lib/db'
+import { verifySession } from '@/lib/session'
 import ProfilClient from '@/components/dashboard/ProfilClient'
 
 export default async function ProfilPage() {
   const cookieStore = await cookies()
-  const sessionCookie = cookieStore.get('session_user')
-
-  let profile: any = null
-  let user: any = null
-
-  if (sessionCookie?.value) {
-    try {
-      profile = JSON.parse(sessionCookie.value)
-      user = { id: profile.id, email: profile.email }
-    } catch {}
-  }
+  let profile = verifySession<any>(cookieStore.get('session_user')?.value)
+  let user: any = profile ? { id: profile.id, email: profile.email } : null
 
   if (!profile && process.env.DATABASE_URL) {
     try {

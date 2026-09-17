@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifySession } from '@/lib/session'
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
@@ -16,13 +17,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next({ request })
   }
 
-  let user: any = null
-  const sessionUserCookie = request.cookies.get('session_user')
-  if (sessionUserCookie?.value) {
-    try {
-      user = JSON.parse(sessionUserCookie.value)
-    } catch {}
-  }
+  const user = verifySession(request.cookies.get('session_user')?.value)
 
   if (!user && !isPublicPage) {
     const url = request.nextUrl.clone()
