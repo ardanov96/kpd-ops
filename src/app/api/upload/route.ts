@@ -32,7 +32,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Tidak ada baris valid', details: errors }, { status: 400 })
     }
 
-    const mismatchedRows = rows.filter(r => r.tanggal && String(r.tanggal).slice(0, 7) !== periode)
+    const invalidDateRows = rows.filter(r => !r.tanggal || !/^\d{4}-\d{2}-\d{2}/.test(r.tanggal))
+    if (invalidDateRows.length > 0) {
+      return NextResponse.json({
+        error: `${invalidDateRows.length} baris memiliki tanggal kosong/invalid. Periksa kolom Tanggal di file XLSX.`,
+        invalidDateCount: invalidDateRows.length,
+      }, { status: 400 })
+    }
+
+    const mismatchedRows = rows.filter(r => String(r.tanggal).slice(0, 7) !== periode)
     if (mismatchedRows.length > 0) {
       const periodsInFile = Array.from(new Set(
         rows.map(r => r.tanggal ? String(r.tanggal).slice(0, 7) : null).filter(Boolean)
