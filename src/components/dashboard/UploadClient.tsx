@@ -143,6 +143,14 @@ export default function UploadClient({ logs }: { logs: any[] }) {
       setError('Format file harus .xlsx atau .xls'); return
     }
 
+    // ✅ Validasi client-side: periode wajib untuk XLSX (JNE auto-detect)
+    if (!isJNE) {
+      if (!periode || !/^\d{4}-\d{2}$/.test(periode)) {
+        setError('Pilih periode bulan (YYYY-MM) sebelum upload XLSX')
+        return
+      }
+    }
+
     setLoading(true); setError(''); setResult(null)
     const fd = new FormData()
     fd.append('file', file)
