@@ -137,6 +137,7 @@ export default function OverviewClient({
   const nonCNX = filteredGrandTotal.filter(d => d.status !== 'CNX')
 
   const totalPenalty = filteredSummary.reduce((s, d) => s + num(d.penalty), 0)
+  const penaltyCount = filteredSummary.reduce((s, d) => s + (num(d.penalty) > 0 ? 1 : 0), 0)
   const netProfit = nonCNX.reduce((s, d) =>
     s + num(d.diskon_booking) + num(d.diskon_asuransi) + num(d.diskon_forward_rate), 0) - totalPenalty
 
@@ -155,7 +156,7 @@ export default function OverviewClient({
   })
   const top3Kota = Object.entries(kotaCount).sort((a, b) => b[1] - a[1]).slice(0, 3)
 
-  return { totalOmzet, totalDiskon, totalKoli, podRate, podCount, dailyTrend, kurirSummary: Object.values(kurirSummary), netProfit, totalPenalty, produkTerpopuler, top3Kota }
+  return { totalOmzet, totalDiskon, totalKoli, podRate, podCount, dailyTrend, kurirSummary: Object.values(kurirSummary), netProfit, totalPenalty, penaltyCount, produkTerpopuler, top3Kota }
 }, [filteredGrandTotal, filteredRecentTx, filteredSummary])
 
   const maxKurirOmzet = Math.max(...stats.kurirSummary.map((k: any) => k.omzet), 1)
@@ -290,7 +291,7 @@ export default function OverviewClient({
 </div>
 
 {/* KPI Baris 2 */}
-<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
 
   {/* Net Profit */}
   <KpiCard
@@ -298,6 +299,17 @@ export default function OverviewClient({
     value={fmt(stats.netProfit)}
     sub={stats.totalPenalty > 0 ? `Telah dipotong Penalty ${fmt(stats.totalPenalty)}` : "Booking + Asuransi + Fwd Rate (excl. CNX)"}
     icon="💹"
+    color={stats.totalPenalty > 0 ? "#ef4444" : "#22c55e"}
+  />
+
+  {/* Total Penalty */}
+  <KpiCard
+    label="Total Penalty"
+    value={fmt(stats.totalPenalty)}
+    sub={stats.penaltyCount > 0
+      ? `${stats.penaltyCount} bulan × Rp 500rb — Lion Parcel omzet < 3jt (aktif s/d Apr 2024)`
+      : "Tidak ada penalty aktif (semua bulan ≥ 3jt)"}
+    icon="⚠️"
     color={stats.totalPenalty > 0 ? "#ef4444" : "#22c55e"}
   />
 
