@@ -13,6 +13,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'File dan ekspedisi wajib diisi' }, { status: 400 })
     }
 
+    if (!periode || !/^\d{4}-\d{2}$/.test(periode)) {
+      return NextResponse.json({
+        error: 'Periode wajib dipilih dan harus dalam format YYYY-MM',
+      }, { status: 400 })
+    }
+
     const kurirRes = await query('SELECT id, kode FROM kurir WHERE id = $1 LIMIT 1', [kurirId])
     if (kurirRes.rows.length === 0) {
       return NextResponse.json({ error: 'Ekspedisi tidak ditemukan' }, { status: 400 })
@@ -24,6 +30,19 @@ export async function POST(req: NextRequest) {
 
     if (rows.length === 0) {
       return NextResponse.json({ error: 'Tidak ada baris valid', details: errors }, { status: 400 })
+    }
+
+    const mismatchedRows = rows.filter(r => r.tanggal && String(r.tanggal).slice(0, 7) !== periode)
+    if (mismatchedRows.length > 0) {
+      const periodsInFile = Array.from(new Set(
+        rows.map(r => r.tanggal ? String(r.tanggal).slice(0, 7) : null).filter(Boolean)
+      ))
+      return NextResponse.json({
+        error: `Terdapat ${mismatchedRows.length} baris dengan tanggal di luar periode ${periode}. Pilih periode yang sesuai dengan data, atau periksa file XLSX.`,
+        periodeDipilih: periode,
+        periodeDiFile: periodsInFile,
+        mismatchedCount: mismatchedRows.length,
+      }, { status: 400 })
     }
 
     const outletRes = await query('SELECT id FROM outlets ORDER BY created_at ASC LIMIT 1')
