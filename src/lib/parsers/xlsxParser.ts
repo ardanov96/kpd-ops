@@ -32,14 +32,26 @@ export interface TransaksiRow {
   raw_data: Record<string, unknown>
 }
 
+// ─── Helper: normalisasi tanggal dari cell XLSX ────────────────────────────
+// Cell bisa berupa Date object (kalau cellDates:true di XLSX.read) atau string
+// "YYYY-MM-DD HH:mm:ss +ZZZZ". Dulu bug: String(Date) → "Tue Sep 15 ..." lalu
+// split(' ')[0] = "Tue" → tersimpan sbg tanggal invalid di DB.
+function normalizeDate(v: unknown): string {
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return ''
+    return v.toISOString().slice(0, 10)
+  }
+  const str = String(v || '').trim()
+  if (!str) return ''
+  return str.split(' ')[0] || str
+}
+
 // ─── LION PARCEL parser ───────────────────────────────────────────────────────
 function parseLionRow(row: Record<string, unknown>): TransaksiRow {
   const n = (v: unknown) => Number(v) || 0
   const s = (v: unknown) => String(v || '').trim()
 
-  // Tanggal dari Lion bisa berupa string "2026-03-31 10:32:09 +0000 +0000"
-  const tglRaw = s(row['Tanggal Booking'])
-  const tanggal = tglRaw.split(' ')[0] || tglRaw
+  const tanggal = normalizeDate(row['Tanggal Booking'])
 
   return {
     nomor_stt: s(row['Nomor STT']),
@@ -81,7 +93,7 @@ function parseJNERow(row: Record<string, unknown>): TransaksiRow {
 
   return {
     nomor_stt: s(row['No Resi'] || row['Nomor Resi'] || row['AWB']),
-    tanggal: s(row['Tanggal'] || row['Tgl Kiriman'] || row['Booking Date']),
+    tanggal: normalizeDate(row['Tanggal'] || row['Tgl Kiriman'] || row['Booking Date']),
     jenis_kiriman: s(row['Jenis'] || 'NON-COD'),
     kota_tujuan: s(row['Kota Tujuan'] || row['Destination']),
     kecamatan_tujuan: s(row['Kecamatan Tujuan'] || ''),
@@ -117,7 +129,7 @@ function parseJNTRow(row: Record<string, unknown>): TransaksiRow {
 
   return {
     nomor_stt: s(row['Waybill'] || row['No Waybill'] || row['Nomor STT']),
-    tanggal: s(row['Tanggal Buat'] || row['Create Date'] || row['Tanggal']),
+    tanggal: normalizeDate(row['Tanggal Buat'] || row['Create Date'] || row['Tanggal']),
     jenis_kiriman: s(row['Tipe'] || 'NON-COD'),
     kota_tujuan: s(row['Kota Tujuan'] || row['Dest City']),
     kecamatan_tujuan: s(row['Kecamatan Tujuan'] || ''),
@@ -153,7 +165,7 @@ function parseWahanaRow(row: Record<string, unknown>): TransaksiRow {
 
   return {
     nomor_stt: s(row['No Resi'] || row['Nomor Resi'] || row['STT']),
-    tanggal: s(row['Tanggal'] || row['Tgl'] || ''),
+    tanggal: normalizeDate(row['Tanggal'] || row['Tgl'] || ''),
     jenis_kiriman: 'NON-COD',
     kota_tujuan: s(row['Tujuan'] || row['Kota Tujuan'] || ''),
     kecamatan_tujuan: '',
@@ -213,6 +225,10 @@ export function parseXLSX(buffer: Buffer, kurirKode: string): ParseResult {
       const parsed = parser(raw)
       if (!parsed.nomor_stt) {
         errors.push({ index: i + 2, message: 'Nomor STT kosong, baris dilewati' })
+        return
+      }
+      if (!parsed.tanggal) {
+        errors.push({ index: i + 2, message: 'Tanggal kosong/invalid, baris dilewati' })
         return
       }
       rows.push(parsed)
