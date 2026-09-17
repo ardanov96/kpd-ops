@@ -103,10 +103,15 @@ export default function OverviewClient({
   }, [recentTx, selectedKurir, selectedPeriode])
 
   const filteredSummary = useMemo(() => {
-    let data = selectedKurir ? summary.filter(d => d.kurir === selectedKurir) : summary
+    // selectedKurir adalah kode (mis. 'LION'), tapi d.kurir dari view adalah nama
+    // (mis. 'Lion Parcel'). Konversi dulu kode → nama via kurirOptions.
+    const selectedKurirNama = selectedKurir
+      ? kurirOptions.find(k => k.kode === selectedKurir)?.nama
+      : null
+    let data = selectedKurirNama ? summary.filter(d => d.kurir === selectedKurirNama) : summary
     if (selectedPeriode) data = data.filter(d => d.periode === selectedPeriode)
     return data
-  }, [summary, selectedKurir, selectedPeriode])
+  }, [summary, selectedKurir, selectedPeriode, kurirOptions])
 
   const selectedKurirInfo = kurirOptions.find(k => k.kode === selectedKurir)
 
@@ -320,7 +325,9 @@ export default function OverviewClient({
   <KpiCard
     label="Net Profit"
     value={fmt(stats.netProfit)}
-    sub={stats.totalPenalty > 0 ? `Telah dipotong Penalty ${fmt(stats.totalPenalty)}` : "Booking + Asuransi + Fwd Rate (excl. CNX)"}
+    sub={stats.totalPenalty > 0
+      ? `Komisi Franchise − Penalty ${fmt(stats.totalPenalty)}`
+      : "Komisi Franchise (Booking + Asuransi + Fwd Rate, excl. CNX)"}
     icon="💹"
     color={stats.totalPenalty > 0 ? "#ef4444" : "#22c55e"}
   />
