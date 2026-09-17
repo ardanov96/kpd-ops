@@ -34,11 +34,12 @@ export default function TransaksiClient({
   summary: {
     subtotalBiaya: number
     subtotalDiskon: number
-    subtotalDiskonAsuransi: number    
-    subtotalDiskonFwdRate: number     
-    subtotalNetProfit: number         
+    subtotalDiskonAsuransi: number
+    subtotalDiskonFwdRate: number
+    subtotalNetProfit: number
     produkTerpopuler: [string, number] | null
-    komoditasTerpopuler: [string, number] | null  
+    komoditasTop3: [string, number, number][]
+    totalOmzetKomoditasTop3: number
   }
 }) {
   const router = useRouter()
@@ -221,18 +222,86 @@ export default function TransaksiClient({
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
       <div style={{ background: '#f59e0b20', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🏷️</div>
       <div>
-        <div style={{ fontSize: 12, color: '#64748b' }}>Komoditas Terpopuler</div>
-        <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX</div>
+        <div style={{ fontSize: 12, color: '#64748b' }}>Top 3 Komoditas</div>
+        <div style={{ fontSize: 10, color: '#475569' }}>Berdasarkan jumlah pengiriman</div>
       </div>
     </div>
-    {summary.komoditasTerpopuler ? (
-      <div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: '#f59e0b' }}>{summary.komoditasTerpopuler[0]}</div>
-        <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{summary.komoditasTerpopuler[1].toLocaleString('id-ID')} pengiriman</div>
+    {summary.komoditasTop3.length > 0 ? (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {summary.komoditasTop3.map(([name, count], i) => (
+          <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              background: i === 0 ? '#f9731630' : i === 1 ? '#64748b30' : '#cd7f3230',
+              color: i === 0 ? '#f97316' : i === 1 ? '#94a3b8' : '#cd7f32',
+              width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0,
+            }}>{i + 1}</span>
+            <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>{name}</span>
+            </div>
+            <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 700 }}>{count.toLocaleString('id-ID')}×</span>
+          </div>
+        ))}
       </div>
     ) : <div style={{ fontSize: 14, color: '#475569' }}>—</div>}
   </div>
 
+</div>
+
+{/* ✅ Section summary tambahan: Omzet Top 3 Komoditas Terpopuler */}
+<div className="card" style={{ padding: '18px 20px', marginTop: 16, marginBottom: 24 }}>
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ background: '#f9731620', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>💰</div>
+      <div>
+        <div style={{ fontSize: 12, color: '#64748b' }}>Omzet Top 3 Komoditas Terpopuler</div>
+        <div style={{ fontSize: 10, color: '#475569' }}>Exclude CNX · berdasarkan total_biaya</div>
+      </div>
+    </div>
+    <div style={{ textAlign: 'right' }}>
+      <div style={{ fontSize: 11, color: '#475569' }}>Total Omzet</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: '#f97316' }}>{fmtFull(summary.totalOmzetKomoditasTop3)}</div>
+    </div>
+  </div>
+
+  {summary.komoditasTop3.length > 0 ? (() => {
+    const maxOmzet = Math.max(...summary.komoditasTop3.map(([, , omzet]) => omzet), 1)
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {summary.komoditasTop3.map(([name, count, omzet], i) => {
+          const pct = (omzet / maxOmzet) * 100
+          const shareOfAll = summary.subtotalBiaya > 0 ? (omzet / summary.subtotalBiaya * 100).toFixed(1) : '0'
+          return (
+            <div key={name} style={{ background: '#0d111c', borderRadius: 10, padding: '12px 14px', border: '1px solid #1e2433' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <span style={{
+                    background: i === 0 ? '#f9731630' : i === 1 ? '#64748b30' : '#cd7f3230',
+                    color: i === 0 ? '#f97316' : i === 1 ? '#94a3b8' : '#cd7f32',
+                    width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0,
+                  }}>{i + 1}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {name}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>· {count}×</span>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#f97316' }}>{fmtFull(omzet)}</div>
+                  <div style={{ fontSize: 10, color: '#475569' }}>{shareOfAll}% dari total</div>
+                </div>
+              </div>
+              <div style={{ background: '#1e2433', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #f97316, #ef4444)', borderRadius: 4, transition: 'width 0.6s' }} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  })() : (
+    <div style={{ color: '#475569', textAlign: 'center', padding: 24 }}>— Belum ada data komoditi —</div>
+  )}
 </div>
 
       {/* Table card */}

@@ -149,9 +149,19 @@ export default async function TransaksiPage({
   summaryData.forEach((r) => { if (r.nama_produk) produkCount[r.nama_produk] = (produkCount[r.nama_produk] || 0) + 1 })
   const produkTerpopuler = Object.entries(produkCount).sort((a, b) => b[1] - a[1])[0] || null
 
-  const komoditasCount: Record<string, number> = {}
-  summaryData.forEach((r) => { if (r.komoditas) komoditasCount[r.komoditas] = (komoditasCount[r.komoditas] || 0) + 1 })
-  const komoditasTerpopuler = Object.entries(komoditasCount).sort((a, b) => b[1] - a[1])[0] || null
+  const komoditasAgg: Record<string, { count: number; omzet: number }> = {}
+  summaryData.forEach((r) => {
+    if (!r.komoditas) return
+    const k = r.komoditas
+    if (!komoditasAgg[k]) komoditasAgg[k] = { count: 0, omzet: 0 }
+    komoditasAgg[k].count += 1
+    komoditasAgg[k].omzet += Number(r.total_biaya) || 0
+  })
+  const komoditasTop3 = Object.entries(komoditasAgg)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 3)
+    .map(([name, v]) => [name, v.count, v.omzet] as [string, number, number])
+  const totalOmzetKomoditasTop3 = komoditasTop3.reduce((s, [, , omzet]) => s + omzet, 0)
 
   return (
     <TransaksiClient
@@ -161,7 +171,7 @@ export default async function TransaksiPage({
       pageSize={pageSize}
       kurirList={kurirList}
       filters={params}
-      summary={{ subtotalBiaya, subtotalDiskon, subtotalDiskonAsuransi, subtotalDiskonFwdRate, subtotalNetProfit, produkTerpopuler, komoditasTerpopuler }}
+      summary={{ subtotalBiaya, subtotalDiskon, subtotalDiskonAsuransi, subtotalDiskonFwdRate, subtotalNetProfit, produkTerpopuler, komoditasTop3, totalOmzetKomoditasTop3 }}
     />
   )
 }
