@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query, withTransaction } from '@/lib/db'
 import { parseXLSX } from '@/lib/parsers/xlsxParser'
+import { requireAuth, isAuthError } from '@/lib/api/auth'
 
 export async function POST(req: NextRequest) {
+  const guard = await requireAuth(req)
+  if (isAuthError(guard)) return guard
+  const { profile } = guard
+
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File
@@ -53,8 +58,14 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    const outletRes = await query('SELECT id FROM outlets ORDER BY created_at ASC LIMIT 1')
-    const outletId = outletRes.rows[0]?.id ?? null
+    // Resolve outlet_id dari session user, fallback ke outlet pertama jika
+    // user tidak punya outlet_id (mis. owner default). Owner TIDAK boleh
+    // upload ke outlet sembarangan — gunakan outlet_id dari session jika ada.
+    let outletId: string | null = profile.outlet_id ?? null
+    if (!outletId) {
+      const outletRes = await query('SELECT id FROM outlets ORDER BY created_at ASC LIMIT 1')
+      outletId = outletRes.rows[0]?.id ?? null
+    }
 
     if (!outletId) {
       return NextResponse.json({
