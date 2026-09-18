@@ -332,6 +332,16 @@ export default function UploadClient({ logs }: { logs: any[] }) {
                   )}
                 </div>
 
+                {/* Warnings (e.g. row overlap, format anomaly) */}
+                {isJNE && result.warnings && result.warnings.length > 0 && (
+                  <div style={{ background: '#3b82f615', border: '1px solid #3b82f640', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                    <div style={{ color: '#3b82f6', fontWeight: 700, marginBottom: 4 }}>⚠️ Warnings</div>
+                    <ul style={{ margin: 0, paddingLeft: 18, color: '#94a3b8' }}>
+                      {result.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                    </ul>
+                  </div>
+                )}
+
                 {result.duplikatCount > 0 && (
                   <div style={{ background: '#f59e0b15', border: '1px solid #f59e0b40', borderRadius: 8, padding: '12px 14px', fontSize: 13 }}>
                     <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: 8 }}>
