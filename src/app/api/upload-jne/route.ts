@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const parseResult = await parseJnePdf(buffer)
-    const { rows, totalRows, errors, periode: periodeDetected, warnings } = parseResult
+    const { rows, totalRows, errors, periodeHint, warnings } = parseResult
 
     if (rows.length === 0) {
       return NextResponse.json({
@@ -67,17 +67,31 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    const periode = periodeManual || periodeDetected || null
+    // Resolve periode: prioritas user input → hint dari header PDF →
+    // derived dari baris. Tolak kalau baris spanning >1 bulan (split
+    // upload per periode lebih aman).
+    const periodsInRows = Array.from(new Set(
+      rows.map(r => r.tanggal ? r.tanggal.slice(0, 7) : null).filter(Boolean)
+    ))
+    if (periodsInRows.length > 1) {
+      return NextResponse.json({
+        error: `PDF mengandung baris dari ${periodsInRows.length} periode (${periodsInRows.join(', ')}). Split upload per periode lebih aman.`,
+        periodsInRows,
+      }, { status: 400 })
+    }
+    const periodeDerived = periodsInRows[0] || null
+    const periode = periodeManual || periodeHint || periodeDerived
 
     if (!periode || !/^\d{4}-\d{2}$/.test(periode)) {
       return NextResponse.json({
-        error: 'Periode tidak terdeteksi di PDF dan tidak dipilih manual. Pilih periode yang sesuai.',
-        detected: periodeDetected,
+        error: 'Periode tidak terdeteksi di PDF, tidak dipilih manual, dan tidak bisa di-derive dari baris.',
+        hint: periodeHint,
+        derived: periodeDerived,
       }, { status: 400 })
     }
 
     const nomorPlList = rows.map(r => r.nomor_pl)
-    let duplikatList: { pl: string; periode: string }[] = []
+    let duplikatList: { pl: string; periode: string; action: string }[] = []
 
     if (nomorPlList.length > 0) {
       const existingRes = await query(
@@ -87,7 +101,7 @@ export async function POST(req: NextRequest) {
       const duplikatSet = new Set(existingRes.rows.map(e => e.nomor_pl))
       duplikatList = [...duplikatSet].map(pl => ({
         pl,
-        periode: periode || '—',
+        periode,
         action: 'updated',
       }))
     }
@@ -100,9 +114,9 @@ export async function POST(req: NextRequest) {
           await run(
             `INSERT INTO jne_packing_list (
               outlet_id, kurir_id, nomor_pl, tanggal, amount, publish_rate, cnote_count, insurance,
-              vat_amount, discount, disc_others, total_net, coly, weight, date_paid, outstanding, periode
+              vat_amount, discount, disc_others, total_net, coly, weight, date_paid, outstanding
             ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
             )
             ON CONFLICT (outlet_id, kurir_id, nomor_pl) DO UPDATE SET
               tanggal = EXCLUDED.tanggal,
@@ -117,11 +131,10 @@ export async function POST(req: NextRequest) {
               coly = EXCLUDED.coly,
               weight = EXCLUDED.weight,
               date_paid = EXCLUDED.date_paid,
-              outstanding = EXCLUDED.outstanding,
-              periode = EXCLUDED.periode`,
+              outstanding = EXCLUDED.outstanding`,
             [
               outletId, kurirData.id, row.nomor_pl, row.tanggal, row.amount, row.publish_rate, row.cnote_count, row.insurance,
-              row.vat_amount, row.discount, row.disc_others, row.total_net, row.coly, row.weight, row.date_paid, row.outstanding, periode
+              row.vat_amount, row.discount, row.disc_others, row.total_net, row.coly, row.weight, row.date_paid, row.outstanding
             ]
           )
           count++
@@ -163,7 +176,7 @@ export async function POST(req: NextRequest) {
       warnings,
       duplikat: duplikatList,
       duplikatCount: duplikatList.length,
-      periodeDetected,
+      periodeHint,
       periodeUsed: periode,
     })
 

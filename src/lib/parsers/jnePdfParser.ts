@@ -126,7 +126,10 @@ export interface ParseResult {
   rows: JnePLRow[]
   totalRows: number
   errors: string[]
-  periode: string | null
+  /** Periode yg terdeteksi dari header PDF (DD-MMMYYYY s/d DD-MMMYYYY).
+   *  Hanya indikatif — bukan sumber kebenaran. Konsistensi periode
+   *  sekarang dijaga via to_char(tanggal, 'YYYY-MM') di view/function. */
+  periodeHint: string | null
   warnings: string[]
 }
 
@@ -164,11 +167,12 @@ export async function parseJnePdf(buffer: Buffer): Promise<ParseResult> {
   const validationError = validateJnePdf(text)
   if (validationError) {
     errors.push(validationError)
-    return { rows, totalRows: 0, errors, periode: null, warnings }
+    return { rows, totalRows: 0, errors, periodeHint: null, warnings }
   }
 
-  // Deteksi periode dari header — multiple format
-  let periode: string | null = null
+  // Deteksi periode dari header — multiple format. Hanya sbg hint,
+  // bukan sumber kebenaran (konsistensi dijaga via to_char(tanggal)).
+  let periodeHint: string | null = null
   const periodePatterns = [
     /Periode\s*:\s*(\d{1,2}[\s\-\/][A-Za-z]+[\s\-\/]*\d{2,4})\s*s[\/.\s]?d[\s\.]?\s*(\d{1,2}[\s\-\/][A-Za-z]+[\s\-\/]*\d{2,4})/i,
     /Period\s*:\s*(\d{1,2}[\s\-\/][A-Za-z]+[\s\-\/]*\d{2,4})\s*to\s*(\d{1,2}[\s\-\/][A-Za-z]+[\s\-\/]*\d{2,4})/i,
@@ -178,7 +182,7 @@ export async function parseJnePdf(buffer: Buffer): Promise<ParseResult> {
     if (m) {
       const endDate = parseDate(m[2])
       if (endDate) {
-        periode = endDate.slice(0, 7)
+        periodeHint = endDate.slice(0, 7)
         break
       }
     }
@@ -281,5 +285,5 @@ export async function parseJnePdf(buffer: Buffer): Promise<ParseResult> {
     warnings.push('Tidak ada row Packing List yang berhasil di-extract. Cek format PDF.')
   }
 
-  return { rows, totalRows: rows.length, errors, periode, warnings }
+  return { rows, totalRows: rows.length, errors, periodeHint, warnings }
 }
