@@ -75,8 +75,14 @@ function parseNum(s: string): number {
     str = str.slice(1, -1)
   }
 
+  // Extract FIRST number sequence (handle multi-number input dari match terakhir
+  // yg greedy, mis. "13.78 312,561.82"). Hanya ambil angka pertama.
+  const firstNum = str.match(/^-?[\d.,]+/)
+  if (!firstNum) return 0
+  str = firstNum[0]
+
   // Strip currency symbols
-  str = str.replace(/Rp\.?|IDR|\s/gi, '')
+  str = str.replace(/Rp\.?|IDR/g, '')
 
   // Detect separator style: count '.' and ',' in remaining string
   const dots = (str.match(/\./g) || []).length
@@ -191,11 +197,25 @@ export async function parseJnePdf(buffer: Buffer): Promise<ParseResult> {
   // Normalisasi text: join lines, collapse whitespace, tapi pertahankan baris kosong
   const normalized = text.replace(/\r?\n/g, ' ').replace(/[ \t]+/g, ' ')
 
-  // Row regex — lebih permissive dari versi sebelumnya:
-  // - Date: case-insensitive, optional separator
-  // - Number: optional thousand separators (handled by parseNum)
-  // - Count: int (cnote, coly)
-  const rowPattern = /(\d{1,2}-[A-Za-z]{3}-?\d{2,4})\s+(PL\/\d+\/\d+)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+(\d+)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+(\d+)\s+(\d+)\s+([\d.,\s\(\)]+?)/gi
+  // Row regex — handle tanggal yg wrap ke baris berikutnya (DD-MMM-\nYYYY
+  // jadi DD-MMM- 2026 setelah join). `(?:-\s*)?` antara MMM dan YYYY toleransi
+  // whitespace. Capture group TUNGGAL utk date supaya index mapping
+  // berikutnya tetap konsisten (tidak off-by-one).
+  //
+  // Capture groups:
+  //  1: tanggal lengkap (DD-MMM-YYYY atau DD-MMM- YYYY jika wrap)
+  //  2: nomor PL (PL/xx/xxxxxxx)
+  //  3: amount           4: publish_rate   5: after_vat (unused)
+  //  6: surcharge? (unused)  7: packing? (unused)
+  //  8: cnote_ins count (JNE insurance cnote count)
+  //  9: insurance        10: vat_amount     11: discount
+  //  12: disc_others     13: total_net
+  //  14: cnote (total)   15: coly           16: weight
+  // Pola match[16] (weight) khusus: angka dgn opsional koma/titik di tengah,
+  // diakhiri whitespace atau end-of-string. Greedy `\d.,\s]+` di sini salah
+  // karena akan consume digit "04" dr "04-AUG-2026" → date_paid parsing
+  // gagal. Pakai pola eksplisit utk satu nomor.
+  const rowPattern = /(\d{1,2}-[A-Za-z]{3}(?:-\s*)?\d{2,4})\s+(PL\/\d+\/\d+)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+(\d+)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+([\d.,\s\(\)]+?)\s+(\d+)\s+(\d+)\s+(\d[\d.,]*\d|\d)(?=\s|$)/gi
 
   let match
   let prevEndIndex = 0
@@ -222,7 +242,9 @@ export async function parseJnePdf(buffer: Buffer): Promise<ParseResult> {
 
       const amount = parseNum(match[3])
       const publishRate = parseNum(match[4])
-      const cnoteCount = parseInt(match[8]) || 0
+      // match[8] = Cnote Ins (JNE insurance cnote count, biasanya 0/1 per row)
+      // match[14] = Cnote total (TOTAL cnote untuk row ini — yg dipakai sbg cnote_count)
+      const cnoteCount = parseInt(match[14]) || 0
       const insurance = parseNum(match[9])
       const vatAmount = parseNum(match[10])
       const discount = parseNum(match[11])
@@ -245,12 +267,12 @@ export async function parseJnePdf(buffer: Buffer): Promise<ParseResult> {
       const searchLimit = nextPlMatch ? nextPlMatch.index : after.length
       const afterSlice = after.slice(0, searchLimit)
 
-      const paidMatch = afterSlice.match(/(\d{1,2}-[A-Za-z]{3}-?\d{2,4})\s+([\d.,\s]+)/)
+      // Handle wrapped date: "DD-MMM-\nYYYY" jadi "DD-MMM- YYYY" setelah join.
+      // Regex pakai "(?:-\s*)?" antara MMM dan YYYY utk handle whitespace.
+      const paidMatch = afterSlice.match(/(\d{1,2}-[A-Za-z]{3}(?:-\s*)?\d{2,4})\s+(-?[\d.,]+)/)
       if (paidMatch) {
         datePaid = parseDate(paidMatch[1])
-        // outstanding = number setelah tanggal bayar, tapi hanya angka pertama (sebelum spasi besar / EOF)
-        const numMatch = paidMatch[2].match(/[\d.,\s\(\)]+/)
-        if (numMatch) outstanding = parseNum(numMatch[0])
+        outstanding = parseNum(paidMatch[2])
       }
 
       // Sanity check: total_net harus > 0 untuk row valid
