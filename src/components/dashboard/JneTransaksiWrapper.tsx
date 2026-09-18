@@ -18,10 +18,16 @@ export default function JneTransaksiWrapper({
   summary: {
     subtotal_biaya: number
     subtotal_diskon: number
-    subtotal_net_profit: number
-    subtotal_outstanding: number
+    subtotal_discount: number
+    subtotal_publish_rate: number
+    subtotal_disc_others: number
     subtotal_asuransi: number
     subtotal_ppn: number
+    subtotal_net_profit: number
+    subtotal_outstanding: number
+    total_cnote: number
+    total_coly: number
+    total_weight: number
     belum_lunas: number
   } | null
 }) {
@@ -44,8 +50,25 @@ export default function JneTransaksiWrapper({
   }
 
   const s = summary || {
-    subtotal_biaya: 0, subtotal_diskon: 0, subtotal_net_profit: 0,
-    subtotal_outstanding: 0, subtotal_asuransi: 0, subtotal_ppn: 0, belum_lunas: 0,
+    subtotal_biaya: 0, subtotal_diskon: 0, subtotal_discount: 0,
+    subtotal_publish_rate: 0, subtotal_disc_others: 0, subtotal_asuransi: 0,
+    subtotal_ppn: 0, subtotal_net_profit: 0, subtotal_outstanding: 0,
+    total_cnote: 0, total_coly: 0, total_weight: 0, belum_lunas: 0,
+  }
+
+  const tableSummary = {
+    totalAmount: s.subtotal_biaya,
+    totalPublishRate: s.subtotal_publish_rate,
+    totalDiscount: s.subtotal_discount,
+    totalDiscOthers: s.subtotal_disc_others,
+    totalInsurance: s.subtotal_asuransi,
+    totalVat: s.subtotal_ppn,
+    totalNet: s.subtotal_net_profit,
+    totalOutstanding: s.subtotal_outstanding,
+    totalCnote: s.total_cnote,
+    totalColy: s.total_coly,
+    totalWeight: Number(s.total_weight) || 0,
+    belumLunasCount: s.belum_lunas,
   }
 
   return (
@@ -136,6 +159,7 @@ export default function JneTransaksiWrapper({
         page={page}
         totalPages={totalPages}
         onPage={goPage}
+        summary={tableSummary}
       />
     </div>
   )

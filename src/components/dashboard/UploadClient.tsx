@@ -325,9 +325,9 @@ export default function UploadClient({ logs }: { logs: any[] }) {
                     {result.errorRows > 0 && <> · Error: <b style={{ color: '#f59e0b' }}>{result.errorRows}</b></>}
                   </div>
                   {/* ✅ Periode terdeteksi otomatis dari PDF JNE */}
-                  {isJNE && result.periodeDetected && (
+                  {isJNE && result.periodeHint && (
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                      📅 Periode terdeteksi: <b style={{ color: '#f97316' }}>{result.periodeDetected}</b>
+                      📅 Periode terdeteksi: <b style={{ color: '#f97316' }}>{result.periodeHint}</b>
                     </div>
                   )}
                 </div>

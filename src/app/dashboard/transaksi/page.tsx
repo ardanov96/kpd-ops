@@ -41,11 +41,16 @@ export default async function TransaksiPage({
     let countSql = 'SELECT COUNT(*)::int as count FROM jne_packing_list WHERE kurir_id = $1'
     let sumJneSql = `
       SELECT COALESCE(SUM(amount), 0) AS subtotal_biaya,
-             COALESCE(SUM(discount + COALESCE(disc_others, 0)), 0) AS subtotal_diskon,
-             COALESCE(SUM(discount + COALESCE(disc_others, 0)), 0) AS subtotal_net_profit,
-             COALESCE(SUM(outstanding), 0) AS subtotal_outstanding,
+             COALESCE(SUM(publish_rate), 0) AS subtotal_publish_rate,
+             COALESCE(SUM(discount), 0) AS subtotal_discount,
+             COALESCE(SUM(COALESCE(disc_others, 0)), 0) AS subtotal_disc_others,
              COALESCE(SUM(insurance), 0) AS subtotal_asuransi,
              COALESCE(SUM(vat_amount), 0) AS subtotal_ppn,
+             COALESCE(SUM(total_net), 0) AS subtotal_net_profit,
+             COALESCE(SUM(outstanding), 0) AS subtotal_outstanding,
+             COALESCE(SUM(cnote_count), 0) AS total_cnote,
+             COALESCE(SUM(coly), 0) AS total_coly,
+             COALESCE(SUM(weight), 0) AS total_weight,
              COUNT(*) FILTER (WHERE outstanding > 0) AS belum_lunas
       FROM jne_packing_list WHERE kurir_id = $1
     `

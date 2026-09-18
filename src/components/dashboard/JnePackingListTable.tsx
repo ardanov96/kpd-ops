@@ -1,29 +1,35 @@
 'use client'
 
-const fmt = (n: number) =>
-  n >= 1_000_000 ? `Rp ${(n / 1_000_000).toFixed(1)}jt`
-  : n >= 1_000   ? `Rp ${(n / 1_000).toFixed(0)}rb`
-  : `Rp ${n}`
-
-const fmtFull = (n: number) =>
-  'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
+import { formatCurrencyAccounting, formatCurrencyShort } from '@/lib/format/currency'
 
 export default function JnePackingListTable({
-  data, totalCount, page, totalPages, onPage,
+  data, totalCount, page, totalPages, onPage, summary,
 }: {
   data: any[]
   totalCount: number
   page: number
   totalPages: number
   onPage: (p: number) => void
+  summary: {
+    totalAmount: number
+    totalPublishRate: number
+    totalDiscount: number
+    totalDiscOthers: number
+    totalInsurance: number
+    totalVat: number
+    totalNet: number
+    totalOutstanding: number
+    totalCnote: number
+    totalColy: number
+    totalWeight: number
+    belumLunasCount: number
+  }
 }) {
-  const totalAmount = data.reduce((s, r) => s + (r.amount || 0), 0)
-  const totalPublishRate = data.reduce((s, r) => s + (r.publish_rate || 0), 0)
-  const totalDiscount = data.reduce((s, r) => s + (r.discount || 0), 0)
-  const totalNet = data.reduce((s, r) => s + (r.total_net || 0), 0)
-  const totalOutstanding = data.reduce((s, r) => s + (r.outstanding || 0), 0)
-  const totalCnote = data.reduce((s, r) => s + (r.cnote_count || 0), 0)
-  const totalColy = data.reduce((s, r) => s + (r.coly || 0), 0)
+  const s = summary || {
+    totalAmount: 0, totalPublishRate: 0, totalDiscount: 0, totalDiscOthers: 0,
+    totalInsurance: 0, totalVat: 0, totalNet: 0, totalOutstanding: 0,
+    totalCnote: 0, totalColy: 0, totalWeight: 0, belumLunasCount: 0,
+  }
 
   const COLS = [
     { label: 'Tanggal', w: 100 },
@@ -43,29 +49,34 @@ export default function JnePackingListTable({
 
   return (
     <div>
-      {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+      {/* Summary cards - SEMUA total dihitung server-side dari SEMUA rows
+          (bukan dari `data` yg paginated), supaya konsisten dgn summary
+          cards di JneTransaksiWrapper. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
         {[
-          { label: 'Total Tagihan', value: fmtFull(totalAmount), color: '#f97316' },
-          { label: 'Net Bayar', value: fmtFull(totalNet), color: '#22c55e' },
-          { label: 'Total Diskon', value: fmtFull(totalDiscount), color: '#a855f7' },
-          { label: 'Outstanding', value: fmtFull(totalOutstanding), color: totalOutstanding > 0 ? '#ef4444' : '#64748b' },
-        ].map(s => (
-          <div key={s.label} className="card" style={{ padding: '14px 16px' }}>
-            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{s.label}</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: s.color }}>{s.value}</div>
+          { label: 'Total Tagihan', value: formatCurrencyAccounting(s.totalAmount), sub: `${totalCount} PL`, color: '#f97316' },
+          { label: 'Net Bayar', value: formatCurrencyAccounting(s.totalNet), sub: `Tagihan − Diskon`, color: '#22c55e' },
+          { label: 'Total Diskon', value: formatCurrencyAccounting(s.totalDiscount + s.totalDiscOthers), sub: `Termasuk Lainnya ${formatCurrencyAccounting(s.totalDiscOthers)}`, color: '#a855f7' },
+          { label: 'Outstanding', value: formatCurrencyAccounting(s.totalOutstanding), sub: `${s.belumLunasCount} PL belum lunas`, color: s.totalOutstanding > 0 ? '#ef4444' : '#64748b' },
+        ].map(card => (
+          <div key={card.label} className="card" style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{card.label}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: card.color }}>{card.value}</div>
+            <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>{card.sub}</div>
           </div>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
         {[
-          { label: 'Total PL', value: `${totalCount} dokumen`, color: '#3b82f6' },
-          { label: 'Total Cnote', value: `${totalCnote} paket`, color: '#06b6d4' },
-          { label: 'Total Koli', value: `${totalColy} koli`, color: '#f59e0b' },
-        ].map(s => (
-          <div key={s.label} className="card" style={{ padding: '14px 16px' }}>
-            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{s.label}</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: s.color }}>{s.value}</div>
+          { label: 'Total Cnote', value: `${s.totalCnote} paket`, color: '#06b6d4' },
+          { label: 'Total Koli', value: `${s.totalColy} koli`, color: '#f59e0b' },
+          { label: 'Total Berat', value: `${s.totalWeight.toLocaleString('id-ID')} kg`, color: '#3b82f6' },
+          { label: 'Asuransi', value: formatCurrencyAccounting(s.totalInsurance), color: '#06b6d4' },
+          { label: 'PPN', value: formatCurrencyAccounting(s.totalVat), color: '#94a3b8' },
+        ].map(item => (
+          <div key={item.label} className="card" style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{item.label}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: item.color }}>{item.value}</div>
           </div>
         ))}
       </div>
@@ -91,13 +102,12 @@ export default function JnePackingListTable({
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                   <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{String(row.tanggal || '').slice(0, 10) || '—'}</td>
                   <td style={{ padding: '9px 14px', fontFamily: 'monospace', fontSize: 11, color: '#ef4444', whiteSpace: 'nowrap' }}>{row.nomor_pl}</td>
-                  <td style={{ padding: '9px 14px', color: '#f97316', fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt(row.amount || 0)}</td>
-                  <td style={{ padding: '9px 14px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{fmt(row.publish_rate || 0)}</td>
-                  <td style={{ padding: '9px 14px', color: '#64748b', textAlign: 'center' }}>{row.cnote_count || 0}</td>
-                  <td style={{ padding: '9px 14px', color: '#06b6d4', whiteSpace: 'nowrap' }}>{row.insurance ? fmt(row.insurance) : '—'}</td>
-                  <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{row.vat_amount ? fmt(row.vat_amount) : '—'}</td>
-                  <td style={{ padding: '9px 14px', color: '#a855f7', whiteSpace: 'nowrap' }}>{row.discount ? fmt(row.discount) : '—'}</td>
-                  <td style={{ padding: '9px 14px', color: '#22c55e', fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt(row.total_net || 0)}</td>
+                  <td style={{ padding: '9px 14px', color: '#f97316', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrencyShort(row.amount || 0)}</td>
+                  <td style={{ padding: '9px 14px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{formatCurrencyShort(row.publish_rate || 0)}</td>
+                  <td style={{ padding: '9px 14px', color: '#06b6d4', whiteSpace: 'nowrap' }}>{row.insurance ? formatCurrencyShort(row.insurance) : '—'}</td>
+                  <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{row.vat_amount ? formatCurrencyShort(row.vat_amount) : '—'}</td>
+                  <td style={{ padding: '9px 14px', color: '#a855f7', whiteSpace: 'nowrap' }}>{row.discount ? formatCurrencyShort(row.discount) : '—'}</td>
+                  <td style={{ padding: '9px 14px', color: '#22c55e', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrencyShort(row.total_net || 0)}</td>
                   <td style={{ padding: '9px 14px', color: '#64748b', textAlign: 'center' }}>{row.coly || 0}</td>
                   <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{row.weight ? `${row.weight} kg` : '—'}</td>
                   <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{row.date_paid?.slice(0, 10) || <span style={{ color: '#f59e0b' }}>Belum</span>}</td>
@@ -106,7 +116,7 @@ export default function JnePackingListTable({
                       color: (row.outstanding || 0) > 0 ? '#ef4444' : '#22c55e',
                       fontWeight: 700,
                     }}>
-                      {(row.outstanding || 0) > 0 ? fmt(row.outstanding) : '✓ Lunas'}
+                      {(row.outstanding || 0) > 0 ? formatCurrencyShort(row.outstanding) : '✓ Lunas'}
                     </span>
                   </td>
                 </tr>
