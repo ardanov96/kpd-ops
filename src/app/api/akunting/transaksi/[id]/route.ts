@@ -11,7 +11,10 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   try {
     const existingRes = await query(
-      'SELECT id, sumber, lampiran_url FROM transaksi_keuangan WHERE id = $1 LIMIT 1',
+      `SELECT tk.id, tk.sumber, tk.lampiran_url, tk.tanggal,
+              is_periode_locked(tk.outlet_id, to_char(tk.tanggal, 'YYYY-MM')) AS locked
+       FROM transaksi_keuangan tk
+       WHERE tk.id = $1 LIMIT 1`,
       [id]
     )
 
@@ -19,6 +22,12 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Transaksi tidak ditemukan' }, { status: 404 })
     }
     const existing = existingRes.rows[0]
+
+    if (existing.locked === true) {
+      return NextResponse.json({
+        error: `Transaksi ditolak: periode ${String(existing.tanggal).slice(0, 7)} sudah di-closing. Buka periode terlebih dahulu.`,
+      }, { status: 403 })
+    }
 
     if (existing.sumber !== 'MANUAL') {
       return NextResponse.json({
@@ -54,11 +63,30 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const existingRes = await query('SELECT id, sumber FROM transaksi_keuangan WHERE id = $1 LIMIT 1', [id])
+    const existingRes = await query(
+      `SELECT tk.id, tk.sumber, tk.outlet_id, tk.tanggal,
+              is_periode_locked(tk.outlet_id, to_char(tk.tanggal, 'YYYY-MM')) AS locked
+       FROM transaksi_keuangan tk
+       WHERE tk.id = $1 LIMIT 1`,
+      [id]
+    )
     if (existingRes.rows.length === 0) {
       return NextResponse.json({ error: 'Transaksi tidak ditemukan' }, { status: 404 })
     }
     const existing = existingRes.rows[0]
+
+    if (existing.locked === true) {
+      // Hanya izinkan update lampiran_url / keterangan (file nota saja),
+      // bukan perubahan nominal/kategori/tanggal.
+      const safeOnlyUpdates = ['lampiran_url', 'keterangan']
+      const requestedKeys = Object.keys(body).filter(k => body[k] !== undefined)
+      const hasUnsafeChange = requestedKeys.some(k => !safeOnlyUpdates.includes(k))
+      if (hasUnsafeChange) {
+        return NextResponse.json({
+          error: `Transaksi ditolak: periode ${String(existing.tanggal).slice(0, 7)} sudah di-closing. Hanya update lampiran_url/keterangan yg diizinkan.`,
+        }, { status: 403 })
+      }
+    }
 
     const updates: string[] = []
     const values: any[] = []

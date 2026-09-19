@@ -24,6 +24,8 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
+    // ✅ Lock check: moved below — needs outletId resolved first
+
     const kurirRes = await query('SELECT id, kode FROM kurir WHERE id = $1 LIMIT 1', [kurirId])
     if (kurirRes.rows.length === 0) {
       return NextResponse.json({ error: 'Ekspedisi tidak ditemukan' }, { status: 400 })
@@ -71,6 +73,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         error: 'Outlet belum ada di database. Silakan buat outlet terlebih dahulu.',
       }, { status: 400 })
+    }
+
+    // ✅ Lock check: tolak upload jika period sudah di-closing
+    const lockRes = await query(
+      'SELECT is_periode_locked($1, $2) AS locked',
+      [outletId, periode]
+    )
+    if (lockRes.rows[0]?.locked === true) {
+      return NextResponse.json({
+        error: `Upload ditolak: periode ${periode} sudah di-closing. Buka periode terlebih dahulu jika perlu update data.`,
+        rolledBack: true,
+      }, { status: 403 })
     }
 
     const nomorSttList = rows.map(r => r.nomor_stt).filter(Boolean)

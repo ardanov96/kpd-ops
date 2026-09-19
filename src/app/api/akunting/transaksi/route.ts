@@ -35,6 +35,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Akses ditolak ke outlet ini' }, { status: 403 })
   }
 
+  // ✅ Lock check: tolak transaksi di period yg sudah di-closing
+  const lockRes = await query(
+    'SELECT is_periode_locked($1, $2) AS locked',
+    [outlet_id, (tanggal || '').slice(0, 7)]
+  )
+  if (lockRes.rows[0]?.locked === true) {
+    return NextResponse.json({
+      error: `Transaksi ditolak: periode ${(tanggal || '').slice(0, 7)} sudah di-closing. Buka periode terlebih dahulu jika perlu update data.`,
+    }, { status: 403 })
+  }
+
   try {
     const katRes = await query('SELECT id, tipe FROM kategori_akun WHERE id = $1 LIMIT 1', [kategori_id])
     if (katRes.rows.length === 0) return apiBadRequest('Kategori tidak ditemukan')

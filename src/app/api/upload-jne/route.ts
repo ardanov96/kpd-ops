@@ -90,6 +90,17 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
+    // ✅ Lock check: tolak upload jika period sudah di-closing
+    const lockRes = await query(
+      'SELECT is_periode_locked($1, $2) AS locked',
+      [outletId, periode]
+    )
+    if (lockRes.rows[0]?.locked === true) {
+      return NextResponse.json({
+        error: `Upload ditolak: periode ${periode} sudah di-closing. Buka periode terlebih dahulu jika perlu update data.`,
+      }, { status: 403 })
+    }
+
     const nomorPlList = rows.map(r => r.nomor_pl)
     let duplikatList: { pl: string; periode: string; action: string }[] = []
 
