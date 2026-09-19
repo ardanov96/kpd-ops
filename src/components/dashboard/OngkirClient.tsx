@@ -59,6 +59,7 @@ function VillageSearch({
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   const timer = useRef<NodeJS.Timeout>()
   const abortRef = useRef<AbortController>()
@@ -78,6 +79,7 @@ function VillageSearch({
   function onInput(q: string) {
     setQuery(q)
     setVillageResults(null)
+    setSearchError(null)
     setHighlight(0)
     clearTimeout(timer.current)
     abortRef.current?.abort()
@@ -90,15 +92,25 @@ function VillageSearch({
       const controller = new AbortController()
       abortRef.current = controller
       setLoading(true)
+      setSearchError(null)
       try {
         const res = await fetch(`/api/ongkir/villages?q=${encodeURIComponent(q)}`, { signal: controller.signal })
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}))
+          throw new Error(errData.error || `HTTP ${res.status}`)
+        }
         const data = await res.json()
         const list = Array.isArray(data) ? data : []
         districtCache.current.set(q.toLowerCase(), list)
         setDistrictResults(list)
         setHighlight(0)
         setOpen(true)
-      } catch (err) { if ((err as Error).name !== 'AbortError') setDistrictResults([]) }
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          setDistrictResults([])
+          setSearchError((err as Error).message || 'Gagal mencari kecamatan')
+        }
+      }
       finally { setLoading(false) }
     }, 200)
   }
@@ -190,6 +202,11 @@ function VillageSearch({
       {value && query && (
         <div style={{ fontSize: 11, color: '#22c55e', marginTop: 4 }}>
           ✓ {value.village}, {value.district}, {value.city} ({value.village_code})
+        </div>
+      )}
+      {searchError && !value && (
+        <div style={{ fontSize: 11, color: '#fca5a5', marginTop: 4 }}>
+          ⚠ {searchError}
         </div>
       )}
       {showDropdown && (

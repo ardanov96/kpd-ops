@@ -2,19 +2,32 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+const BASE_URL = 'https://use.api.co.id'
+const API_KEY = process.env.APICOOID_KEY || ''
+
 export async function GET(req: NextRequest) {
+  if (!API_KEY) {
+    return NextResponse.json({
+      error: 'APICOOID_KEY belum diset di .env.local. Daftar di https://use.api.co.id utk mendapatkan API key.',
+    }, { status: 503 })
+  }
+
   const q = req.nextUrl.searchParams.get('q') || ''
   const districtCode = req.nextUrl.searchParams.get('district_code') || ''
 
   // Mode 1: pilih kecamatan -> list semua kelurahan di dalamnya
   if (districtCode) {
     const res = await fetch(
-      `https://use.api.co.id/regional/indonesia/villages?district_code=${encodeURIComponent(districtCode)}&limit=100`,
-      { headers: { 'x-api-co-id': process.env.APICOOID_KEY! } }
+      `${BASE_URL}/regional/indonesia/villages?district_code=${encodeURIComponent(districtCode)}&limit=100`,
+      { headers: { 'x-api-co-id': API_KEY } }
     )
-    const data = await res.json()
-    const items: any[] = data?.data || []
-
+    const data = await res.json().catch(() => null)
+    if (!data?.is_success) {
+      return NextResponse.json({
+        error: `Gagal ambil kelurahan: ${data?.message || `HTTP ${res.status}`}`,
+      }, { status: 502 })
+    }
+    const items: any[] = data.data || []
     const mapped = items.map((item: any) => ({
       village_code: item.code || '',
       village: item.name || '',
@@ -22,7 +35,6 @@ export async function GET(req: NextRequest) {
       city: item.regency || '',
       province: item.province || '',
     }))
-
     return NextResponse.json(mapped)
   }
 
@@ -30,12 +42,17 @@ export async function GET(req: NextRequest) {
   if (q.length < 3) return NextResponse.json([])
 
   const res = await fetch(
-    `https://use.api.co.id/regional/indonesia/districts?name=${encodeURIComponent(q)}&limit=10`,
-    { headers: { 'x-api-co-id': process.env.APICOOID_KEY! } }
+    `${BASE_URL}/regional/indonesia/districts?name=${encodeURIComponent(q)}&limit=10`,
+    { headers: { 'x-api-co-id': API_KEY } }
   )
-  const data = await res.json()
-  const items: any[] = data?.data || []
+  const data = await res.json().catch(() => null)
+  if (!data?.is_success) {
+    return NextResponse.json({
+      error: `Gagal cari kecamatan: ${data?.message || `HTTP ${res.status}`}`,
+    }, { status: 502 })
+  }
 
+  const items: any[] = data.data || []
   const mapped = items.map((item: any) => ({
     district_code: item.code || '',
     district: item.name || '',
