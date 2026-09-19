@@ -47,7 +47,15 @@ export default async function OpnamePage({
     stokList = stokRes.rows
 
     const histRes = await query(
-      'SELECT * FROM opname WHERE outlet_id = $1 ORDER BY periode DESC LIMIT 12',
+      `SELECT o.*, COALESCE(c.item_count, 0)::int AS item_count
+       FROM opname o
+       LEFT JOIN (
+         SELECT opname_id, COUNT(*) AS item_count
+         FROM opname_item
+         GROUP BY opname_id
+       ) c ON c.opname_id = o.id
+       WHERE o.outlet_id = $1
+       ORDER BY o.periode DESC LIMIT 12`,
       [outlet.id]
     )
     opnameHistory = histRes.rows

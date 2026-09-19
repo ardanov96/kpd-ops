@@ -179,10 +179,12 @@ export default function PajakUploadBuktiClient({
       clearFile()
       router.refresh()
     } catch (e: any) {
-      // ── Fix Bug #5: Cleanup orphan file di Storage kalau DB update gagal ──
+      // ── Cleanup orphan file di Storage kalau DB update gagal ──
       // Kalau upload berhasil tapi DB update gagal, hapus file dari Storage
       // agar tidak ada file orphan tanpa reference di database.
-      if (uploadedPath && !fileInputRef.current?.files?.[0]) {
+      // Condition: uploadedPath exist AND user has uploaded a file
+      // (fileInputRef.files[0] truthy proves there was an upload).
+      if (uploadedPath && fileInputRef.current?.files?.[0]) {
         try {
           // Tunggu sebentar untuk pastikan DB error bukan network glitch
           await new Promise(r => setTimeout(r, 500))

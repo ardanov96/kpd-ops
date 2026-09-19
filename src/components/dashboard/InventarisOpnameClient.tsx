@@ -327,7 +327,7 @@ export default function InventarisOpnameClient({
                         padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
                       }}>{o.status}</span>
                     </td>
-                    <td style={td()}>{o.items?.length || 0}</td>
+                    <td style={td()}>{o.item_count || 0}</td>
                     <td style={{ ...td(), color: '#94a3b8', fontSize: 12 }}>{o.catatan || '-'}</td>
                   </tr>
                 ))}
