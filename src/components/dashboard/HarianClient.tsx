@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   BarChart, Bar, Cell, Legend,
@@ -126,6 +127,8 @@ export default function HarianClient({
   kurirList: Kurir[]
   todayStr: string
 }) {
+  const router = useRouter()
+
   // ─── State ────────────────────────────────────────────────
   const [range, setRange] = useState('30')
   const [selectedKurir, setSelectedKurir] = useState<string>('')
@@ -137,18 +140,30 @@ export default function HarianClient({
     if (!autoRefresh) return
     const t = setInterval(() => {
       setLastRefresh(new Date())
-      // simple state bump → component re-renders with fresh server data via router.refresh()
-      window.location.reload()
+      // router.refresh() = soft refresh, pertahankan scroll & form state
+      router.refresh()
     }, 5 * 60 * 1000)
     return () => clearInterval(t)
-  }, [autoRefresh])
+  }, [autoRefresh, router])
 
   // ─── Filter Logic ─────────────────────────────────────────
   const filtered = useMemo(() => {
-    let data = summary
+    // range = '7' → pakai summary7d (sudah 7 hari dari server)
+    // range = '14' / '30' → filter summary (30 hari dari server) by date
+    let base = range === '7' ? summary7d : summary
+    let data = base
+    if (range !== '7' && (range === '14' || range === '30')) {
+      const days = Number(range)
+      const cutoff = new Date(todayStr)
+      cutoff.setDate(cutoff.getDate() - (days - 1)) // include today
+      const cutoffStr = cutoff.toISOString().slice(0, 10)
+      data = base.filter(d => String(d.tanggal || '').slice(0, 10) >= cutoffStr)
+    }
+    // range = '90' di luar jangkauan data server (hanya 30 hari),
+    // fall back ke summary penuh (30 hari) + tampilkan warning di header
     if (selectedKurir) data = data.filter(d => d.kurir_kode === selectedKurir)
     return data
-  }, [summary, selectedKurir])
+  }, [summary, summary7d, selectedKurir, range, todayStr])
 
   // Aggregate by tanggal (sum across outlets & kurir)
   const byDate = useMemo(() => {
@@ -269,6 +284,9 @@ export default function HarianClient({
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9', margin: 0 }}>📅 Dashboard Harian</h1>
           <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
             Monitoring real-time · Last update: {lastRefresh.toLocaleTimeString('id-ID')}
+            {range === '90' && (
+              <span style={{ color: '#f59e0b', marginLeft: 8 }}>· 90 hari belum didukung (data 30 hari)</span>
+            )}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
