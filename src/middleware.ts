@@ -17,7 +17,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next({ request })
   }
 
-  const user = verifySession(request.cookies.get('session_user')?.value)
+  const user = await verifySession(request.cookies.get('session_user')?.value)
 
   if (!user && !isPublicPage) {
     const url = request.nextUrl.clone()

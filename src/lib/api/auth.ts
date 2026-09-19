@@ -21,7 +21,7 @@ export interface AuthGuard {
 export async function requireAuth(_req: NextRequest): Promise<AuthGuard | NextResponse> {
   try {
     const cookieStore = await cookies()
-    const p = verifySession<any>(cookieStore.get('session_user')?.value)
+    const p = await verifySession<any>(cookieStore.get('session_user')?.value)
 
     if (p?.id) {
       return {

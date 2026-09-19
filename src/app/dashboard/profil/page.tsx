@@ -6,7 +6,7 @@ import ProfilClient from '@/components/dashboard/ProfilClient'
 
 export default async function ProfilPage() {
   const cookieStore = await cookies()
-  let profile = verifySession<any>(cookieStore.get('session_user')?.value)
+  let profile = await verifySession<any>(cookieStore.get('session_user')?.value)
   let user: any = profile ? { id: profile.id, email: profile.email } : null
 
   if (!profile && process.env.DATABASE_URL) {

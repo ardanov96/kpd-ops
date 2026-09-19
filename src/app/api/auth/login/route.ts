@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       }
 
       const response = NextResponse.json({ success: true, user })
-      response.cookies.set('session_user', signSession(user as any), {
+      response.cookies.set('session_user', await signSession(user as any), {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
           const { password_hash, ...safeUser } = user
           const response = NextResponse.json({ success: true, user: safeUser })
 
-          response.cookies.set('session_user', signSession(safeUser as any), {
+          response.cookies.set('session_user', await signSession(safeUser as any), {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',

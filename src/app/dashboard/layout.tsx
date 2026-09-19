@@ -7,7 +7,7 @@ import MobileShell from '@/components/dashboard/MobileShell'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
-  let profile = verifySession<any>(cookieStore.get('session_user')?.value)
+  let profile = await verifySession<any>(cookieStore.get('session_user')?.value)
   let user: any = profile ? { id: profile.id, email: profile.email } : null
 
   if (!profile && process.env.DATABASE_URL) {
