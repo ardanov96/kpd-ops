@@ -146,8 +146,19 @@ export async function POST(req: NextRequest) {
               date_paid = EXCLUDED.date_paid,
               outstanding = EXCLUDED.outstanding`,
             [
-              outletId, kurirData.id, row.nomor_pl, row.tanggal, row.amount, row.publish_rate, row.cnote_count, row.insurance,
-              row.vat_amount, row.discount, row.disc_others, row.total_net, row.coly, row.weight, row.date_paid, row.outstanding
+              outletId, kurirData.id, row.nomor_pl, row.tanggal,
+              Math.round(row.amount || 0),
+              Math.round(row.publish_rate || 0),
+              Math.round(row.cnote_count || 0),
+              Math.round(row.insurance || 0),
+              Math.round(row.vat_amount || 0),
+              Math.round(row.discount || 0),
+              Math.round(row.disc_others || 0),
+              Math.round(row.total_net || 0),
+              Math.round(row.coly || 0),
+              Math.round(row.weight || 0),
+              row.date_paid,
+              Math.round(row.outstanding || 0)
             ]
           )
           count++
