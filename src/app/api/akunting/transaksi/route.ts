@@ -35,12 +35,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Akses ditolak ke outlet ini' }, { status: 403 })
   }
 
-  // ✅ Lock check: tolak transaksi di period yg sudah di-closing
+  // ✅ Lock check: tolak transaksi di period yg sudah di-closing.
+  // Inline SQL (bukan function) supaya portable sebelum migration 021.
   const lockRes = await query(
-    'SELECT is_periode_locked($1, $2) AS locked',
+    `SELECT is_locked FROM periode_closing
+     WHERE outlet_id = $1 AND periode = $2 LIMIT 1`,
     [outlet_id, (tanggal || '').slice(0, 7)]
   )
-  if (lockRes.rows[0]?.locked === true) {
+  if (lockRes.rows[0]?.is_locked === true) {
     return NextResponse.json({
       error: `Transaksi ditolak: periode ${(tanggal || '').slice(0, 7)} sudah di-closing. Buka periode terlebih dahulu jika perlu update data.`,
     }, { status: 403 })

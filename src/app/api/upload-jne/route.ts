@@ -90,12 +90,14 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    // ✅ Lock check: tolak upload jika period sudah di-closing
+    // ✅ Lock check: tolak upload jika period sudah di-closing.
+    // Inline SQL (bukan function) supaya portable sebelum migration 021.
     const lockRes = await query(
-      'SELECT is_periode_locked($1, $2) AS locked',
+      `SELECT is_locked FROM periode_closing
+       WHERE outlet_id = $1 AND periode = $2 LIMIT 1`,
       [outletId, periode]
     )
-    if (lockRes.rows[0]?.locked === true) {
+    if (lockRes.rows[0]?.is_locked === true) {
       return NextResponse.json({
         error: `Upload ditolak: periode ${periode} sudah di-closing. Buka periode terlebih dahulu jika perlu update data.`,
       }, { status: 403 })
