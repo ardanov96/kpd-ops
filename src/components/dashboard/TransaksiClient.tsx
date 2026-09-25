@@ -38,6 +38,8 @@ export default function TransaksiClient({
     subtotalDiskonAsuransi: number
     subtotalDiskonFwdRate: number
     subtotalNetProfit: number
+    totalPenalty?: number
+    penaltyCount?: number
     produkTerpopuler: [string, number] | null
     komoditasTop3: [string, number, number][]
     totalOmzetKomoditasTop3: number
@@ -190,19 +192,59 @@ export default function TransaksiClient({
 </div>
 
 {/* ✅ Ringkasan bawah — baris 2 */}
-<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 16, marginBottom: 24 }}>
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginTop: 16, marginBottom: 24 }}>
 
+  {/* Subtotal Net Profit */}
   <div className="card" style={{ padding: '18px 20px' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-      <div style={{ background: '#22c55e20', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>💹</div>
+      <div style={{
+        background: (summary.subtotalNetProfit < 0 || (summary.totalPenalty ?? 0) > 0) ? '#ef444420' : '#22c55e20',
+        borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18
+      }}>💹</div>
       <div>
         <div style={{ fontSize: 12, color: '#64748b' }}>Subtotal Net Profit</div>
-        <div style={{ fontSize: 10, color: '#475569' }}>Booking + Asuransi + Fwd Rate</div>
+        <div style={{ fontSize: 10, color: '#475569' }}>
+          {(summary.totalPenalty ?? 0) > 0
+            ? `Komisi Franchise − Penalty ${formatCurrency(summary.totalPenalty ?? 0)}`
+            : 'Booking + Asuransi + Fwd Rate (excl. CNX)'}
+        </div>
       </div>
     </div>
-    <div style={{ fontSize: 22, fontWeight: 800, color: '#22c55e' }}>{formatCurrency(summary.subtotalNetProfit)}</div>
+    <div style={{
+      fontSize: 22,
+      fontWeight: 800,
+      color: (summary.subtotalNetProfit < 0 || (summary.totalPenalty ?? 0) > 0) ? '#ef4444' : '#22c55e'
+    }}>
+      {formatCurrency(summary.subtotalNetProfit)}
+    </div>
   </div>
 
+  {/* Total Penalty */}
+  <div className="card" style={{ padding: '18px 20px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div style={{
+        background: (summary.totalPenalty ?? 0) > 0 ? '#ef444420' : '#22c55e20',
+        borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18
+      }}>⚠️</div>
+      <div>
+        <div style={{ fontSize: 12, color: '#64748b' }}>Total Penalty</div>
+        <div style={{ fontSize: 10, color: '#475569' }}>
+          {(summary.penaltyCount ?? 0) > 0
+            ? `${summary.penaltyCount} bulan × Rp 500rb — Lion Parcel < 3jt`
+            : 'Tidak ada penalty aktif (semua bulan ≥ 3jt)'}
+        </div>
+      </div>
+    </div>
+    <div style={{
+      fontSize: 22,
+      fontWeight: 800,
+      color: (summary.totalPenalty ?? 0) > 0 ? '#ef4444' : '#22c55e'
+    }}>
+      {formatCurrency(summary.totalPenalty ?? 0)}
+    </div>
+  </div>
+
+  {/* Produk Terpopuler */}
   <div className="card" style={{ padding: '18px 20px' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
       <div style={{ background: '#22c55e20', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📦</div>
@@ -219,6 +261,7 @@ export default function TransaksiClient({
     ) : <div style={{ fontSize: 14, color: '#475569' }}>—</div>}
   </div>
 
+  {/* Top 3 Komoditas */}
   <div className="card" style={{ padding: '18px 20px' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
       <div style={{ background: '#f59e0b20', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🏷️</div>

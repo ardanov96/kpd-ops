@@ -113,14 +113,21 @@ export default async function TransaksiPage({
     whereClauses.push(`t.status = $${sqlParams.length}`)
   }
   if (params.periode) {
-    const [year, month] = params.periode.split('-')
-    const firstDay = `${year}-${month}-01`
-    const lastDay = new Date(Number(year), Number(month), 0).toISOString().slice(0, 10)
+    if (/^\d{4}-\d{2}$/.test(params.periode)) {
+      const [year, month] = params.periode.split('-')
+      const firstDay = `${year}-${month}-01`
+      const lastDay = new Date(Number(year), Number(month), 0).toISOString().slice(0, 10)
 
-    sqlParams.push(firstDay)
-    whereClauses.push(`t.tanggal >= $${sqlParams.length}`)
-    sqlParams.push(lastDay)
-    whereClauses.push(`t.tanggal <= $${sqlParams.length}`)
+      sqlParams.push(firstDay)
+      whereClauses.push(`t.tanggal >= $${sqlParams.length}`)
+      sqlParams.push(lastDay)
+      whereClauses.push(`t.tanggal <= $${sqlParams.length}`)
+    } else if (/^\d{4}$/.test(params.periode)) {
+      sqlParams.push(`${params.periode}-01-01`)
+      whereClauses.push(`t.tanggal >= $${sqlParams.length}`)
+      sqlParams.push(`${params.periode}-12-31`)
+      whereClauses.push(`t.tanggal <= $${sqlParams.length}`)
+    }
   }
 
   const whereSql = whereClauses.join(' AND ')
@@ -141,9 +148,13 @@ export default async function TransaksiPage({
     `
     const countSql = `SELECT COUNT(*)::int as count FROM transaksi t WHERE ${whereSql}`
     const sumSql = `
-      SELECT total_biaya, diskon_booking, diskon_asuransi, diskon_forward_rate, potongan, biaya_asuransi, nama_produk, komoditas, status
+      SELECT t.total_biaya, t.diskon_booking, t.diskon_asuransi, t.diskon_forward_rate, 
+             t.potongan, t.biaya_asuransi, t.nama_produk, t.komoditas, t.status,
+             to_char(t.tanggal, 'YYYY-MM') as periode,
+             k.kode as kurir_kode
       FROM transaksi t
-      WHERE ${whereSql} AND t.status != 'CNX'
+      LEFT JOIN kurir k ON k.id = t.kurir_id
+      WHERE ${whereSql}
     `
 
     const [dRes, cRes, sRes] = await Promise.all([
@@ -159,18 +170,44 @@ export default async function TransaksiPage({
     console.error('Error fetching transaksi page data:', e)
   }
 
-  const subtotalBiaya = summaryData.reduce((acc, r) => acc + (Number(r.total_biaya) || 0), 0)
-  const subtotalDiskon = summaryData.reduce((acc, r) => acc + (Number(r.diskon_booking) || 0), 0)
-  const subtotalDiskonAsuransi = summaryData.reduce((acc, r) => acc + (Number(r.diskon_asuransi) || 0), 0)
-  const subtotalDiskonFwdRate = summaryData.reduce((acc, r) => acc + (Number(r.diskon_forward_rate) || 0), 0)
-  const subtotalNetProfit = subtotalDiskon + subtotalDiskonAsuransi + subtotalDiskonFwdRate
+  // Penalty Lion Parcel: dihitung on-the-fly per bulan/periode agar
+  // konsisten dengan modul Ringkasan & Analitik.
+  // Aturan: Lion omzet > 0 dan < 3jt per bulan, mulai April 2024 → penalty 500rb per bulan
+  const LION_PENALTY_START_PERIODE = '2024-04'
+  const lionOmzetByPeriode: Record<string, number> = {}
+  summaryData.forEach((r) => {
+    if (r.kurir_kode === 'LION') {
+      const p = String(r.periode || '').slice(0, 7)
+      if (!p || p < LION_PENALTY_START_PERIODE) return
+      lionOmzetByPeriode[p] = (lionOmzetByPeriode[p] || 0) + (Number(r.total_biaya) || 0)
+    }
+  })
+
+  let totalPenalty = 0
+  let penaltyCount = 0
+  for (const lionOmzet of Object.values(lionOmzetByPeriode)) {
+    if (lionOmzet > 0 && lionOmzet < 3000000) {
+      totalPenalty += 500000
+      penaltyCount++
+    }
+  }
+
+  // Ringkasan transaksi exclude CNX agar konsisten dengan kartu Subtotal & Overview
+  const nonCNX = summaryData.filter((r) => r.status !== 'CNX')
+
+  const subtotalBiaya = nonCNX.reduce((acc, r) => acc + (Number(r.total_biaya) || 0), 0)
+  const subtotalDiskon = nonCNX.reduce((acc, r) => acc + (Number(r.diskon_booking) || 0), 0)
+  const subtotalDiskonAsuransi = nonCNX.reduce((acc, r) => acc + (Number(r.diskon_asuransi) || 0), 0)
+  const subtotalDiskonFwdRate = nonCNX.reduce((acc, r) => acc + (Number(r.diskon_forward_rate) || 0), 0)
+  const totalKomisiFranchise = subtotalDiskon + subtotalDiskonAsuransi + subtotalDiskonFwdRate
+  const subtotalNetProfit = totalKomisiFranchise - totalPenalty
 
   const produkCount: Record<string, number> = {}
-  summaryData.forEach((r) => { if (r.nama_produk) produkCount[r.nama_produk] = (produkCount[r.nama_produk] || 0) + 1 })
+  nonCNX.forEach((r) => { if (r.nama_produk) produkCount[r.nama_produk] = (produkCount[r.nama_produk] || 0) + 1 })
   const produkTerpopuler = Object.entries(produkCount).sort((a, b) => b[1] - a[1])[0] || null
 
   const komoditasAgg: Record<string, { count: number; omzet: number }> = {}
-  summaryData.forEach((r) => {
+  nonCNX.forEach((r) => {
     if (!r.komoditas) return
     const k = r.komoditas
     if (!komoditasAgg[k]) komoditasAgg[k] = { count: 0, omzet: 0 }
@@ -191,7 +228,18 @@ export default async function TransaksiPage({
       pageSize={pageSize}
       kurirList={kurirList}
       filters={params}
-      summary={{ subtotalBiaya, subtotalDiskon, subtotalDiskonAsuransi, subtotalDiskonFwdRate, subtotalNetProfit, produkTerpopuler, komoditasTop3, totalOmzetKomoditasTop3 }}
+      summary={{
+        subtotalBiaya,
+        subtotalDiskon,
+        subtotalDiskonAsuransi,
+        subtotalDiskonFwdRate,
+        subtotalNetProfit,
+        totalPenalty,
+        penaltyCount,
+        produkTerpopuler,
+        komoditasTop3,
+        totalOmzetKomoditasTop3,
+      }}
     />
   )
 }

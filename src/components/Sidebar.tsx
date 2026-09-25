@@ -5,9 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 
 const NAV = [
   { href: '/dashboard/harian',                icon: '📅', label: 'Harian' },
-  { href: '/dashboard',                       icon: '📊', label: 'Ringkasan' },
+  { href: '/dashboard',                       icon: '📊', label: 'Ringkasan & Analitik' },
   { href: '/dashboard/transaksi',             icon: '📦', label: 'Transaksi' },
-  { href: '/dashboard/analitik',              icon: '📈', label: 'Analitik' },
   { href: '/dashboard/akunting',              icon: '💰', label: 'Akunting' },
   { href: '/dashboard/pajak',                 icon: '🧾', label: 'Pajak', alertKey: 'pajak' },
   { href: '/dashboard/ongkir',                icon: '🔍', label: 'Cek Ongkir' },
