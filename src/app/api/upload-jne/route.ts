@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         outletId, kurirData.id, file.name, periode, totalRows, successRows,
-        totalRows - successRows + errors.length,
+        Math.max(0, totalRows - successRows),
         errors.length > 0 ? JSON.stringify(errors.slice(0, 20)) : null
       ]
     )

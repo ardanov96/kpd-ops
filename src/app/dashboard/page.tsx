@@ -14,6 +14,7 @@ export default async function DashboardPage({
   let summary: any[] = []
   let recentTx: any[] = []
   let grandTotal: any[] = []
+  let jneList: any[] = []
   let kurirList: any[] = []
 
   if (process.env.DATABASE_URL) {
@@ -39,6 +40,32 @@ export default async function DashboardPage({
       `)
       grandTotal = grandTotalRes.rows
 
+      const jneRes = await query(`
+        SELECT 
+          j.id,
+          j.nomor_pl,
+          to_char(j.tanggal, 'YYYY-MM-DD') as tanggal,
+          j.amount as total_biaya,
+          j.publish_rate,
+          j.discount as diskon_booking,
+          COALESCE(j.disc_others, 0) as disc_others,
+          j.total_net as net_profit,
+          j.cnote_count,
+          j.coly as koli,
+          j.weight as berat_kena_biaya,
+          to_char(j.date_paid, 'YYYY-MM-DD') as date_paid,
+          j.outstanding,
+          j.insurance,
+          j.vat_amount,
+          CASE WHEN j.outstanding <= 0 THEN 'LUNAS' ELSE 'BELUM_LUNAS' END as status_pembayaran,
+          j.kurir_id,
+          json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir
+        FROM jne_packing_list j
+        LEFT JOIN kurir k ON k.id = j.kurir_id
+        ORDER BY j.tanggal DESC
+      `)
+      jneList = jneRes.rows
+
       const kurirRes = await query('SELECT id, kode, nama, warna FROM kurir WHERE aktif IS NOT FALSE ORDER BY nama ASC')
       kurirList = kurirRes.rows
     } catch (e) {
@@ -51,6 +78,7 @@ export default async function DashboardPage({
       summary={summary}
       recentTx={recentTx}
       grandTotal={grandTotal}
+      jneList={jneList}
       kurirList={kurirList}
       initialTab={initialTab}
     />

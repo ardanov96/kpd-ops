@@ -104,6 +104,7 @@ export default function JnePackingListTable({
                   <td style={{ padding: '9px 14px', fontFamily: 'monospace', fontSize: 11, color: '#ef4444', whiteSpace: 'nowrap' }}>{row.nomor_pl}</td>
                   <td style={{ padding: '9px 14px', color: '#f97316', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrencyShort(row.amount || 0)}</td>
                   <td style={{ padding: '9px 14px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{formatCurrencyShort(row.publish_rate || 0)}</td>
+                  <td style={{ padding: '9px 14px', color: '#06b6d4', textAlign: 'center', fontWeight: 700 }}>{row.cnote_count || 0}</td>
                   <td style={{ padding: '9px 14px', color: '#06b6d4', whiteSpace: 'nowrap' }}>{row.insurance ? formatCurrencyShort(row.insurance) : '—'}</td>
                   <td style={{ padding: '9px 14px', color: '#64748b', whiteSpace: 'nowrap' }}>{row.vat_amount ? formatCurrencyShort(row.vat_amount) : '—'}</td>
                   <td style={{ padding: '9px 14px', color: '#a855f7', whiteSpace: 'nowrap' }}>{row.discount ? formatCurrencyShort(row.discount) : '—'}</td>

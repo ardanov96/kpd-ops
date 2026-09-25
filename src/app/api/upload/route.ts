@@ -149,10 +149,28 @@ export async function POST(req: NextRequest) {
               raw_data = EXCLUDED.raw_data`,
             [
               outletId, kurirData.id, row.nomor_stt, row.tanggal, row.jenis_kiriman, row.kota_tujuan, row.kecamatan_tujuan,
-              row.nama_produk, row.komoditas, row.koli, row.berat_volume, row.berat_kotor, row.berat_kena_biaya,
-              row.publish_rate, row.shipping_surcharge, row.forward_rate, row.biaya_asuransi, row.biaya_cod,
-              row.total_sebelum_potongan, row.potongan, row.total_biaya, row.total_cod, row.diskon_booking,
-              row.diskon_pickup, row.diskon_asuransi, row.diskon_forward_rate, row.bm, row.ppn, row.pph, row.status,
+              row.nama_produk, row.komoditas,
+              Math.round(row.koli || 1),
+              Number(row.berat_volume || 0),
+              Number(row.berat_kotor || 0),
+              Number(row.berat_kena_biaya || 0),
+              Math.round(row.publish_rate || 0),
+              Math.round(row.shipping_surcharge || 0),
+              Math.round(row.forward_rate || 0),
+              Math.round(row.biaya_asuransi || 0),
+              Math.round(row.biaya_cod || 0),
+              Math.round(row.total_sebelum_potongan || 0),
+              Math.round(row.potongan || 0),
+              Math.round(row.total_biaya || 0),
+              Math.round(row.total_cod || 0),
+              Math.round(row.diskon_booking || 0),
+              Math.round(row.diskon_pickup || 0),
+              Math.round(row.diskon_asuransi || 0),
+              Math.round(row.diskon_forward_rate || 0),
+              Math.round(row.bm || 0),
+              Math.round(row.ppn || 0),
+              Math.round(row.pph || 0),
+              row.status,
               JSON.stringify(row.raw_data || {})
             ]
           )
@@ -193,7 +211,7 @@ export async function POST(req: NextRequest) {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         kurirData.id, outletId, file.name, periode, totalRows, successRows,
-        totalRows - successRows + errors.length, errors.length > 0 ? JSON.stringify(errors) : null
+        Math.max(0, totalRows - successRows), errors.length > 0 ? JSON.stringify(errors) : null
       ]
     )
 

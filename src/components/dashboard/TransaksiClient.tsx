@@ -116,9 +116,46 @@ export default function TransaksiClient({
   return (
     
     <div style={{ padding: 28 }}>
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800 }}>Transaksi</h1>
-        <p style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>{totalCount.toLocaleString('id-ID')} total data</p>
+        <p style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>{totalCount.toLocaleString('id-ID')} total data transaksi</p>
+      </div>
+
+      {/* Kurir Quick Switcher */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          onClick={() => updateFilter('kurir', '')}
+          style={{
+            background: !filters.kurir ? 'linear-gradient(135deg, #f97316, #ef4444)' : '#1e2433',
+            color: !filters.kurir ? '#fff' : '#94a3b8',
+            border: `1px solid ${!filters.kurir ? '#f97316' : '#2d3748'}`,
+            borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          Semua Ekspedisi
+        </button>
+        <button
+          onClick={() => updateFilter('kurir', 'LION')}
+          style={{
+            background: filters.kurir === 'LION' ? '#f97316' : '#1e2433',
+            color: filters.kurir === 'LION' ? '#fff' : '#94a3b8',
+            border: `1px solid ${filters.kurir === 'LION' ? '#f97316' : '#2d3748'}`,
+            borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          📦 Lion Parcel (Resi STT)
+        </button>
+        <button
+          onClick={() => updateFilter('kurir', 'JNE')}
+          style={{
+            background: '#1e2433',
+            color: '#ef4444',
+            border: '1px solid #ef444460',
+            borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          📋 JNE Express (Packing List) ➔
+        </button>
       </div>
 
       {/* Filter */}
@@ -138,8 +175,18 @@ export default function TransaksiClient({
         </select>
 
         <input className="input-base" style={{ width: 160, colorScheme: 'dark' }}
-          type="month" value={filters.periode || ''}
+          type="month" value={filters.periode && /^\d{4}-\d{2}$/.test(filters.periode) ? filters.periode : ''}
           onChange={e => updateFilter('periode', e.target.value)} />
+
+        {/* Filter Cepat Tahun */}
+        <select className="input-base" style={{ width: 'auto', minWidth: 130 }}
+          value={filters.periode && /^\d{4}$/.test(filters.periode) ? filters.periode : ''}
+          onChange={e => updateFilter('periode', e.target.value)}>
+          <option value="">Pilih Tahun</option>
+          <option value="2026">Tahun 2026</option>
+          <option value="2025">Tahun 2025</option>
+          <option value="2024">Tahun 2024</option>
+        </select>
 
         {(filters.kurir || filters.status || filters.periode) && (
           <button onClick={() => router.push(pathname)} style={{

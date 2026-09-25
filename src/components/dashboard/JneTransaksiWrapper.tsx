@@ -73,11 +73,48 @@ export default function JneTransaksiWrapper({
 
   return (
     <div style={{ padding: 28 }}>
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800 }}>Transaksi</h1>
         <p style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>
-          {totalCount.toLocaleString('id-ID')} total Packing List JNE
+          {totalCount.toLocaleString('id-ID')} total Packing List JNE Express
         </p>
+      </div>
+
+      {/* Kurir Quick Switcher */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          onClick={() => updateFilter('kurir', '')}
+          style={{
+            background: '#1e2433',
+            color: '#94a3b8',
+            border: '1px solid #2d3748',
+            borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          Semua Ekspedisi
+        </button>
+        <button
+          onClick={() => updateFilter('kurir', 'LION')}
+          style={{
+            background: '#1e2433',
+            color: '#f97316',
+            border: '1px solid #f9731650',
+            borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          📦 Lion Parcel (Resi STT)
+        </button>
+        <button
+          onClick={() => updateFilter('kurir', 'JNE')}
+          style={{
+            background: 'linear-gradient(135deg, #ef4444, #f97316)',
+            color: '#fff',
+            border: '1px solid #ef4444',
+            borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          📋 JNE Express (Packing List) ✓
+        </button>
       </div>
 
       {/* Filter */}
@@ -88,11 +125,30 @@ export default function JneTransaksiWrapper({
           {kurirList.map((k: any) => <option key={k.kode} value={k.kode}>{k.nama}</option>)}
         </select>
 
+        {/* Status Pembayaran JNE */}
+        <select className="input-base" style={{ width: 'auto', minWidth: 150 }}
+          value={filters.status || ''} onChange={e => updateFilter('status', e.target.value)}>
+          <option value="">Semua Status Bayar</option>
+          <option value="LUNAS">✓ Lunas</option>
+          <option value="BELUM_LUNAS">⚠️ Belum Lunas (Outstanding)</option>
+        </select>
+
+        {/* Periode Bulan */}
         <input className="input-base" style={{ width: 160, colorScheme: 'dark' }}
-          type="month" value={filters.periode || ''}
+          type="month" value={filters.periode && /^\d{4}-\d{2}$/.test(filters.periode) ? filters.periode : ''}
           onChange={e => updateFilter('periode', e.target.value)} />
 
-        {(filters.kurir || filters.periode) && (
+        {/* Filter Cepat Tahun */}
+        <select className="input-base" style={{ width: 'auto', minWidth: 130 }}
+          value={filters.periode && /^\d{4}$/.test(filters.periode) ? filters.periode : ''}
+          onChange={e => updateFilter('periode', e.target.value)}>
+          <option value="">Pilih Tahun</option>
+          <option value="2026">Tahun 2026</option>
+          <option value="2025">Tahun 2025</option>
+          <option value="2024">Tahun 2024</option>
+        </select>
+
+        {(filters.kurir || filters.periode || filters.status) && (
           <button onClick={() => router.push(pathname)} style={{
             background: '#1e2433', border: '1px solid #2d3748', borderRadius: 8,
             padding: '8px 14px', color: '#94a3b8', fontSize: 13, cursor: 'pointer',
@@ -106,7 +162,7 @@ export default function JneTransaksiWrapper({
           border: `1px solid ${kurirInfo?.warna || '#ef4444'}40`,
           padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700,
         }}>
-          📋 Mode: Packing List JNE
+          📋 Mode: Rekapitulasi Packing List JNE
         </span>
 
         <span style={{ marginLeft: 'auto', fontSize: 12, color: '#475569' }}>
@@ -127,16 +183,23 @@ export default function JneTransaksiWrapper({
         <div className="card" style={{ padding: '18px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <div style={{ background: '#a855f720', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🏷️</div>
-            <div style={{ fontSize: 12, color: '#64748b' }}>Subtotal Diskon</div>
+            <div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>Komisi Agen (Diskon)</div>
+              <div style={{ fontSize: 10, color: '#475569' }}>Potongan komisi agen</div>
+            </div>
           </div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#a855f7' }}>{formatCurrencyAccounting(Number(s.subtotal_diskon))}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#a855f7' }}>
+            {formatCurrencyAccounting(Number(s.subtotal_discount || 0) + Number(s.subtotal_disc_others || 0))}
+          </div>
         </div>
 
         <div className="card" style={{ padding: '18px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <div style={{ background: '#22c55e20', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>💹</div>
-            <div style={{ fontSize: 12, color: '#64748b' }}>Komisi Franchise</div>
-            <div style={{ fontSize: 10, color: '#475569' }}>(= Diskon)</div>
+            <div style={{ background: '#22c55e20', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>💳</div>
+            <div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>Tagihan Net JNE</div>
+              <div style={{ fontSize: 10, color: '#475569' }}>Setor ke pusat</div>
+            </div>
           </div>
           <div style={{ fontSize: 22, fontWeight: 800, color: '#22c55e' }}>{formatCurrencyAccounting(Number(s.subtotal_net_profit))}</div>
         </div>

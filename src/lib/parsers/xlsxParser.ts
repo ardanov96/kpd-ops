@@ -48,7 +48,8 @@ function normalizeDate(v: unknown): string {
 
 // ─── LION PARCEL parser ───────────────────────────────────────────────────────
 function parseLionRow(row: Record<string, unknown>): TransaksiRow {
-  const n = (v: unknown) => Number(v) || 0
+  const n = (v: unknown) => Math.round(Number(v) || 0)
+  const f = (v: unknown) => Number(v) || 0
   const s = (v: unknown) => String(v || '').trim()
 
   const tanggal = normalizeDate(row['Tanggal Booking'])
@@ -61,10 +62,10 @@ function parseLionRow(row: Record<string, unknown>): TransaksiRow {
     kecamatan_tujuan: s(row['Kecamatan Tujuan']),
     nama_produk: s(row['Nama Produk']),
     komoditas: s(row['Nama Komoditas']),
-    koli: n(row['Koli']),
-    berat_volume: n(row['Berat Volume']),
-    berat_kotor: n(row['Berat Kotor']),
-    berat_kena_biaya: n(row['Berat Kena Biaya']),
+    koli: n(row['Koli']) || 1,
+    berat_volume: f(row['Berat Volume']),
+    berat_kotor: f(row['Berat Kotor']),
+    berat_kena_biaya: f(row['Berat Kena Biaya']),
     publish_rate: n(row['Publish Rate']),
     shipping_surcharge: n(row['Shipping Surcharge']),
     forward_rate: n(row['Origin Forward Rate']) + n(row['Destination Forward Rate']),
@@ -88,7 +89,8 @@ function parseLionRow(row: Record<string, unknown>): TransaksiRow {
 
 // ─── JNE parser (akan dilengkapi setelah dapat sample) ───────────────────────
 function parseJNERow(row: Record<string, unknown>): TransaksiRow {
-  const n = (v: unknown) => Number(v) || 0
+  const n = (v: unknown) => Math.round(Number(v) || 0)
+  const f = (v: unknown) => Number(v) || 0
   const s = (v: unknown) => String(v || '').trim()
 
   return {
@@ -99,10 +101,10 @@ function parseJNERow(row: Record<string, unknown>): TransaksiRow {
     kecamatan_tujuan: s(row['Kecamatan Tujuan'] || ''),
     nama_produk: s(row['Layanan'] || row['Service'] || row['Produk']),
     komoditas: s(row['Isi Kiriman'] || row['Komoditas'] || ''),
-    koli: n(row['Koli'] || row['Colly']),
-    berat_volume: n(row['Berat Volume'] || row['Vol Weight']),
-    berat_kotor: n(row['Berat Kotor'] || row['Berat']),
-    berat_kena_biaya: n(row['Berat Kena Biaya'] || row['Charge Weight']),
+    koli: n(row['Koli'] || row['Colly']) || 1,
+    berat_volume: f(row['Berat Volume'] || row['Vol Weight']),
+    berat_kotor: f(row['Berat Kotor'] || row['Berat']),
+    berat_kena_biaya: f(row['Berat Kena Biaya'] || row['Charge Weight']),
     publish_rate: n(row['Tarif'] || row['Ongkir'] || row['Freight']),
     shipping_surcharge: 0,
     forward_rate: 0,
@@ -124,7 +126,8 @@ function parseJNERow(row: Record<string, unknown>): TransaksiRow {
 
 // ─── J&T parser (akan dilengkapi setelah dapat sample) ───────────────────────
 function parseJNTRow(row: Record<string, unknown>): TransaksiRow {
-  const n = (v: unknown) => Number(v) || 0
+  const n = (v: unknown) => Math.round(Number(v) || 0)
+  const f = (v: unknown) => Number(v) || 0
   const s = (v: unknown) => String(v || '').trim()
 
   return {
@@ -135,10 +138,10 @@ function parseJNTRow(row: Record<string, unknown>): TransaksiRow {
     kecamatan_tujuan: s(row['Kecamatan Tujuan'] || ''),
     nama_produk: s(row['Produk'] || row['Service Type'] || ''),
     komoditas: s(row['Komoditas'] || row['Item'] || ''),
-    koli: n(row['Koli'] || row['Qty']),
-    berat_volume: n(row['Berat Volume'] || 0),
-    berat_kotor: n(row['Berat'] || row['Weight']),
-    berat_kena_biaya: n(row['Berat Tagih'] || row['Charge Weight']),
+    koli: n(row['Koli'] || row['Qty']) || 1,
+    berat_volume: f(row['Berat Volume'] || 0),
+    berat_kotor: f(row['Berat'] || row['Weight']),
+    berat_kena_biaya: f(row['Berat Tagih'] || row['Charge Weight']),
     publish_rate: n(row['Ongkir'] || row['Freight']),
     shipping_surcharge: n(row['Surcharge'] || 0),
     forward_rate: 0,
@@ -160,7 +163,8 @@ function parseJNTRow(row: Record<string, unknown>): TransaksiRow {
 
 // ─── WAHANA parser (akan dilengkapi setelah dapat sample) ────────────────────
 function parseWahanaRow(row: Record<string, unknown>): TransaksiRow {
-  const n = (v: unknown) => Number(v) || 0
+  const n = (v: unknown) => Math.round(Number(v) || 0)
+  const f = (v: unknown) => Number(v) || 0
   const s = (v: unknown) => String(v || '').trim()
 
   return {
@@ -171,10 +175,10 @@ function parseWahanaRow(row: Record<string, unknown>): TransaksiRow {
     kecamatan_tujuan: '',
     nama_produk: s(row['Layanan'] || row['Service'] || ''),
     komoditas: s(row['Isi'] || row['Komoditas'] || ''),
-    koli: n(row['Koli'] || 1),
+    koli: n(row['Koli'] || 1) || 1,
     berat_volume: 0,
-    berat_kotor: n(row['Berat']),
-    berat_kena_biaya: n(row['Berat Tagih'] || row['Berat']),
+    berat_kotor: f(row['Berat']),
+    berat_kena_biaya: f(row['Berat Tagih'] || row['Berat']),
     publish_rate: n(row['Ongkir'] || row['Tarif']),
     shipping_surcharge: 0,
     forward_rate: 0,
@@ -222,7 +226,17 @@ export function parseXLSX(buffer: Buffer, kurirKode: string): ParseResult {
 
   rawRows.forEach((raw, i) => {
     try {
+      // Abaikan baris yang sepenuhnya kosong (trailing empty rows dari Excel)
+      const isCompletelyEmpty = Object.values(raw).every(v => v === '' || v === null || v === undefined)
+      if (isCompletelyEmpty) return
+
       const parsed = parser(raw)
+
+      // Abaikan baris footer / summary / spacer (misal baris TOTAL di bawah tabel)
+      if (!parsed.nomor_stt && !parsed.tanggal) {
+        return
+      }
+
       if (!parsed.nomor_stt) {
         errors.push({ index: i + 2, message: 'Nomor STT kosong, baris dilewati' })
         return
@@ -237,5 +251,5 @@ export function parseXLSX(buffer: Buffer, kurirKode: string): ParseResult {
     }
   })
 
-  return { rows, errors, totalRows: rawRows.length }
+  return { rows, errors, totalRows: rows.length + errors.length }
 }

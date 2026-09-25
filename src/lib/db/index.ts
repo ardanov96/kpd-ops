@@ -43,6 +43,12 @@ const rawConnectionString =
   process.env.SUPABASE_DB_URL ||
   'postgresql://postgres:postgres@localhost:5432/postgres'
 
+// Invalidate pool jika masih memakai konfigurasi timeout lama di dev server (HMR/Turbopack)
+if (globalForDb.pool && (globalForDb.pool as any).options?.connectionTimeoutMillis !== 15000) {
+  try { globalForDb.pool.end() } catch {}
+  globalForDb.pool = undefined
+}
+
 export const pool =
   globalForDb.pool ??
   new Pool({
@@ -53,8 +59,8 @@ export const pool =
         ? { rejectUnauthorized: false }
         : false,
     max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
+    idleTimeoutMillis: 60000, // 60s agar koneksi tetap hangat saat user upload file berturut-turut
+    connectionTimeoutMillis: 15000, // 15s (sebelumnya 5s) untuk kompensasi latensi trans-pasifik ke Neon.tech (US-East)
   })
 
 if (process.env.NODE_ENV !== 'production') {
@@ -79,7 +85,19 @@ export async function query<T extends QueryResultRow = any>(
 export async function withTransaction<T>(
   fn: (run: <R extends QueryResultRow = any>(text: string, params?: any[]) => Promise<QueryResult<R>>) => Promise<T>
 ): Promise<T> {
-  const client = await pool.connect()
+  let client: any
+  try {
+    client = await pool.connect()
+  } catch (err: any) {
+    // Retry 1x jika koneksi timeout / terputus sementara (mis. Neon cold-start)
+    if (err?.message?.includes('timeout') || err?.code === 'ECONNRESET' || err?.code === 'ETIMEDOUT') {
+      console.warn('[db] withTransaction connect retry:', err.message)
+      client = await pool.connect()
+    } else {
+      throw err
+    }
+  }
+
   try {
     await client.query('BEGIN')
     const result = await fn((text, params) => client.query(text, params))

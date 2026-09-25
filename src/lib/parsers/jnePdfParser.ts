@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse')
+const { PDFParse } = require('pdf-parse')
 
 const MONTHS: Record<string, string> = {
   JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06',
@@ -162,12 +162,24 @@ function validateJnePdf(text: string): string | null {
 }
 
 export async function parseJnePdf(buffer: Buffer): Promise<ParseResult> {
-  const data = await pdfParse(buffer)
-  const text: string = data.text || ''
-
   const rows: JnePLRow[] = []
   const errors: string[] = []
   const warnings: string[] = []
+
+  let text = ''
+  try {
+    const parser = new PDFParse({ data: buffer })
+    try {
+      const result = await parser.getText()
+      text = result.text || ''
+    } finally {
+      await parser.destroy()
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    errors.push(`Gagal membaca file PDF: ${msg}`)
+    return { rows, totalRows: 0, errors, periodeHint: null, warnings }
+  }
 
   // Validasi input
   const validationError = validateJnePdf(text)

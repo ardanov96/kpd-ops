@@ -57,14 +57,29 @@ export default async function TransaksiPage({
     const queryParams: any[] = [selectedKurirData.id]
 
     if (params.periode) {
-      const [year, month] = params.periode.split('-')
-      const firstDay = `${year}-${month}-01`
-      const lastDay = new Date(Number(year), Number(month), 0).toISOString().slice(0, 10)
+      if (/^\d{4}-\d{2}$/.test(params.periode)) {
+        queryParams.push(params.periode)
+        jneSql += ` AND to_char(tanggal, 'YYYY-MM') = $${queryParams.length}`
+        countSql += ` AND to_char(tanggal, 'YYYY-MM') = $${queryParams.length}`
+        sumJneSql += ` AND to_char(tanggal, 'YYYY-MM') = $${queryParams.length}`
+      } else if (/^\d{4}$/.test(params.periode)) {
+        queryParams.push(params.periode)
+        jneSql += ` AND to_char(tanggal, 'YYYY') = $${queryParams.length}`
+        countSql += ` AND to_char(tanggal, 'YYYY') = $${queryParams.length}`
+        sumJneSql += ` AND to_char(tanggal, 'YYYY') = $${queryParams.length}`
+      }
+    }
 
-      queryParams.push(firstDay, lastDay)
-      jneSql += ` AND tanggal >= $2 AND tanggal <= $3`
-      countSql += ` AND tanggal >= $2 AND tanggal <= $3`
-      sumJneSql += ` AND tanggal >= $2 AND tanggal <= $3`
+    if (params.status) {
+      if (params.status === 'LUNAS') {
+        jneSql += ` AND outstanding <= 0`
+        countSql += ` AND outstanding <= 0`
+        sumJneSql += ` AND outstanding <= 0`
+      } else if (params.status === 'BELUM_LUNAS') {
+        jneSql += ` AND outstanding > 0`
+        countSql += ` AND outstanding > 0`
+        sumJneSql += ` AND outstanding > 0`
+      }
     }
 
     jneSql += ` ORDER BY tanggal DESC LIMIT ${pageSize} OFFSET ${offset}`
@@ -74,11 +89,9 @@ export default async function TransaksiPage({
     let jneSummary: any = null
 
     try {
-      const [dataRes, countRes, sumRes] = await Promise.all([
-        query(jneSql, queryParams),
-        query(countSql, queryParams),
-        query(sumJneSql, queryParams),
-      ])
+      const dataRes = await query(jneSql, queryParams)
+      const countRes = await query(countSql, queryParams)
+      const sumRes = await query(sumJneSql, queryParams)
       jneData = dataRes.rows
       totalCount = countRes.rows[0]?.count || 0
       jneSummary = sumRes.rows[0]
@@ -157,11 +170,9 @@ export default async function TransaksiPage({
       WHERE ${whereSql}
     `
 
-    const [dRes, cRes, sRes] = await Promise.all([
-      query(dataSql, sqlParams),
-      query(countSql, sqlParams),
-      query(sumSql, sqlParams),
-    ])
+    const dRes = await query(dataSql, sqlParams)
+    const cRes = await query(countSql, sqlParams)
+    const sRes = await query(sumSql, sqlParams)
 
     transaksi = dRes.rows
     totalCount = cRes.rows[0]?.count || 0

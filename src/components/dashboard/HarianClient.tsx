@@ -388,10 +388,15 @@ export default function HarianClient({
               <YAxis stroke="#64748b" style={{ fontSize: 11 }} tickFormatter={fmt} />
               <Tooltip
                 contentStyle={{
-                  background: '#0f172a', border: '1px solid #2d3748',
-                  borderRadius: 8, fontSize: 12,
+                  background: '#0f172a',
+                  border: '1px solid #334155',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
                 }}
-                formatter={(v: number) => formatCurrency(v)}
+                labelStyle={{ color: '#f1f5f9', fontWeight: 700, marginBottom: 4 }}
+                itemStyle={{ color: '#f8fafc', fontWeight: 600 }}
+                formatter={(v: any, name: any) => [formatCurrency(Number(v) || 0), name]}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Line type="monotone" dataKey="Omzet" stroke="#f97316" strokeWidth={2} dot={{ r: 4 }} />
@@ -413,10 +418,15 @@ export default function HarianClient({
               <YAxis type="category" dataKey="kode" stroke="#64748b" style={{ fontSize: 11 }} width={50} />
               <Tooltip
                 contentStyle={{
-                  background: '#0f172a', border: '1px solid #2d3748',
-                  borderRadius: 8, fontSize: 12,
+                  background: '#0f172a',
+                  border: '1px solid #334155',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
                 }}
-                formatter={(v: number) => formatCurrency(v)}
+                labelStyle={{ color: '#f1f5f9', fontWeight: 700, marginBottom: 4 }}
+                itemStyle={{ color: '#38bdf8', fontWeight: 600 }}
+                formatter={(v: any) => [formatCurrency(Number(v) || 0), 'Total Omzet']}
               />
               <Bar dataKey="total_omzet" radius={[0, 6, 6, 0]}>
                 {topKurir.map((k, i) => (
