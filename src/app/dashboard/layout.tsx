@@ -34,16 +34,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (process.env.DATABASE_URL) {
     try {
-      const kurirRes = await query('SELECT kode, nama, warna FROM kurir WHERE aktif IS NOT FALSE ORDER BY nama ASC')
-      kurirAktif = kurirRes.rows
+      const kurirPromise = query('SELECT kode, nama, warna FROM kurir WHERE aktif IS NOT FALSE ORDER BY nama ASC')
+      const invAlertPromise = query('SELECT COUNT(*)::int as count FROM v_stok_aktual WHERE is_below_min = true')
+      const pajakAlertPromise = profile.role === 'owner'
+        ? query('SELECT COUNT(*)::int as count FROM v_pajak_reminder WHERE sisa_hari <= 7')
+        : Promise.resolve({ rows: [{ count: 0 }] } as any)
 
-      const invAlertRes = await query('SELECT COUNT(*)::int as count FROM v_stok_aktual WHERE is_below_min = true')
-      inventarisAlert = invAlertRes.rows[0]?.count || 0
+      const [kRes, iRes, pRes] = await Promise.allSettled([
+        kurirPromise,
+        invAlertPromise,
+        pajakAlertPromise
+      ])
 
-      if (profile.role === 'owner') {
-        const pajakAlertRes = await query('SELECT COUNT(*)::int as count FROM v_pajak_reminder WHERE sisa_hari <= 7')
-        pajakAlert = pajakAlertRes.rows[0]?.count || 0
-      }
+      if (kRes.status === 'fulfilled') kurirAktif = kRes.value.rows
+      if (iRes.status === 'fulfilled') inventarisAlert = iRes.value.rows[0]?.count || 0
+      if (pRes.status === 'fulfilled') pajakAlert = pRes.value.rows[0]?.count || 0
     } catch (e) {
       console.error('Error fetching layout data from Neon:', e)
     }

@@ -19,30 +19,41 @@ export default async function HarianPage() {
   let kurirList: any[] = []
 
   try {
-    const sumRes = await query(
-      'SELECT * FROM v_summary_harian WHERE tanggal >= $1 ORDER BY tanggal DESC',
-      [sinceStr]
-    )
-    summary = sumRes.rows
+    const results = await Promise.allSettled([
+      query(
+        'SELECT * FROM v_summary_harian WHERE tanggal >= $1 ORDER BY tanggal DESC',
+        [sinceStr]
+      ),
+      query(`
+        SELECT t.id, t.nomor_stt, to_char(t.tanggal, 'YYYY-MM-DD') as tanggal, t.kota_tujuan, t.total_biaya, t.status, t.jenis_kiriman,
+          json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir
+        FROM transaksi t
+        LEFT JOIN kurir k ON k.id = t.kurir_id
+        ORDER BY t.tanggal DESC
+        LIMIT 10
+      `),
+      query('SELECT kode, nama, warna FROM kurir WHERE aktif IS NOT FALSE ORDER BY kode ASC')
+    ])
 
-    const sum7Res = await query(
-      'SELECT * FROM v_summary_harian WHERE tanggal >= $1 ORDER BY tanggal DESC',
-      [since7Str]
-    )
-    summary7d = sum7Res.rows
+    if (results[0].status === 'fulfilled') {
+      summary = results[0].value.rows
+      // since7Str (7 hari) adalah subset dari sinceStr (30 hari), filter langsung dari memori tanpa roundtrip tambahan ke Neon
+      summary7d = summary.filter((r: any) => String(r.tanggal || '').slice(0, 10) >= since7Str)
+    } else {
+      console.error('Error fetching v_summary_harian:', results[0].reason)
+    }
 
-    const txRes = await query(`
-      SELECT t.id, t.nomor_stt, to_char(t.tanggal, 'YYYY-MM-DD') as tanggal, t.kota_tujuan, t.total_biaya, t.status, t.jenis_kiriman,
-        json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir
-      FROM transaksi t
-      LEFT JOIN kurir k ON k.id = t.kurir_id
-      ORDER BY t.tanggal DESC
-      LIMIT 10
-    `)
-    recentTx = txRes.rows
+    if (results[1].status === 'fulfilled') {
+      recentTx = results[1].value.rows
+    } else {
+      console.error('Error fetching recentTx harian:', results[1].reason)
+    }
 
-    const kurirRes = await query('SELECT kode, nama, warna FROM kurir WHERE aktif IS NOT FALSE ORDER BY kode ASC')
-    kurirList = kurirRes.rows
+    if (results[2].status === 'fulfilled') {
+      kurirList = results[2].value.rows
+    } else {
+      console.error('Error fetching kurirList harian:', results[2].reason)
+    }
   } catch (e) {
     console.error('Error fetching harian page data:', e)
   }

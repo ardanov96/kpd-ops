@@ -43,35 +43,84 @@ const rawConnectionString =
   process.env.SUPABASE_DB_URL ||
   'postgresql://postgres:postgres@localhost:5432/postgres'
 
-// Invalidate pool jika masih memakai konfigurasi timeout lama di dev server (HMR/Turbopack)
-if (globalForDb.pool && (globalForDb.pool as any).options?.connectionTimeoutMillis !== 15000) {
+// Invalidate pool jika masih memakai konfigurasi lama di dev server (HMR/Turbopack)
+if (
+  globalForDb.pool &&
+  ((globalForDb.pool as any).options?.idleTimeoutMillis !== 15000 ||
+   !(globalForDb.pool as any).options?.keepAlive)
+) {
   try { globalForDb.pool.end() } catch {}
   globalForDb.pool = undefined
 }
 
-export const pool =
-  globalForDb.pool ??
-  new Pool({
+function createPool(): Pool {
+  const isNeon = Boolean(rawConnectionString && rawConnectionString.includes('neon.tech'))
+  const p = new Pool({
     connectionString: normalizeConnectionString(rawConnectionString),
     ssl:
-      process.env.NODE_ENV === 'production' ||
-      (rawConnectionString && rawConnectionString.includes('neon.tech'))
+      process.env.NODE_ENV === 'production' || isNeon
         ? { rejectUnauthorized: false }
         : false,
     max: 10,
-    idleTimeoutMillis: 60000, // 60s agar koneksi tetap hangat saat user upload file berturut-turut
-    connectionTimeoutMillis: 15000, // 15s (sebelumnya 5s) untuk kompensasi latensi trans-pasifik ke Neon.tech (US-East)
+    // Neon PgBouncer memutus koneksi idle setelah ~20-30 detik.
+    // Menyetel idleTimeoutMillis ke 15s memastikan node-postgres mempensiunkan koneksi idle
+    // sebelum diputus sepihak oleh Neon PgBouncer, mencegah error 'Connection terminated unexpectedly'.
+    idleTimeoutMillis: 15000,
+    connectionTimeoutMillis: 15000, // 15s kompensasi latensi trans-pasifik ke Neon.tech (US-East)
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
   })
+
+  // Tangani error pada client idle di dalam pool agar tidak memicu unhandled exception / crash
+  p.on('error', (err: any) => {
+    console.warn('[db] Idle client error caught by pool handler (connection recycled):', err?.message || err)
+  })
+
+  return p
+}
+
+export const pool = globalForDb.pool ?? createPool()
 
 if (process.env.NODE_ENV !== 'production') {
   globalForDb.pool = pool
+}
+
+function isTransientError(err: any): boolean {
+  const msg = String(err?.message || '').toLowerCase()
+  const code = String(err?.code || '')
+  return (
+    msg.includes('connection terminated') ||
+    msg.includes('timeout') ||
+    msg.includes('socket closed') ||
+    msg.includes('econnreset') ||
+    msg.includes('etimedout') ||
+    msg.includes('connection ended') ||
+    code === 'ECONNRESET' ||
+    code === 'ETIMEDOUT' ||
+    code === '57P01' || // admin_shutdown (Neon compute wake/restart)
+    code === '57P02' || // crash_shutdown
+    code === '57P03' || // cannot_connect_now
+    code === '08006' || // connection_failure
+    code === '08001' || // sqlclient_unable_to_establish_sqlconnection
+    code === '08004'    // sqlserver_rejected_establishment_of_sqlconnection
+  )
 }
 
 export async function query<T extends QueryResultRow = any>(
   text: string,
   params?: any[]
 ): Promise<QueryResult<T>> {
-  return pool.query<T>(text, params)
+  try {
+    return await pool.query<T>(text, params)
+  } catch (err: any) {
+    if (isTransientError(err)) {
+      console.warn('[db] query retry after transient connection error:', err?.message || err)
+      // Jeda 250ms sebelum retry agar pool dapat membuat socket baru yang sehat
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      return await pool.query<T>(text, params)
+    }
+    throw err
+  }
 }
 
 /**
@@ -90,8 +139,9 @@ export async function withTransaction<T>(
     client = await pool.connect()
   } catch (err: any) {
     // Retry 1x jika koneksi timeout / terputus sementara (mis. Neon cold-start)
-    if (err?.message?.includes('timeout') || err?.code === 'ECONNRESET' || err?.code === 'ETIMEDOUT') {
-      console.warn('[db] withTransaction connect retry:', err.message)
+    if (isTransientError(err)) {
+      console.warn('[db] withTransaction connect retry:', err?.message || err)
+      await new Promise((resolve) => setTimeout(resolve, 250))
       client = await pool.connect()
     } else {
       throw err
@@ -110,3 +160,4 @@ export async function withTransaction<T>(
     client.release()
   }
 }
+
