@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/db'
+import { query, isDatabaseConfigured } from '@/lib/db'
 import { signSession } from '@/lib/session'
 
 export async function POST(request: NextRequest) {
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       }
 
       let user = null
-      if (process.env.DATABASE_URL) {
+      if (isDatabaseConfigured) {
         try {
           const res = await query(
             'SELECT id, email, nama, role, outlet_id FROM profiles WHERE LOWER(email) = $1 LIMIT 1',
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Query user profile terdaftar lain dari database PostgreSQL Neon
-    if (process.env.DATABASE_URL) {
+    if (isDatabaseConfigured) {
       try {
         const res = await query(
           'SELECT id, email, password_hash, nama, role, outlet_id FROM profiles WHERE LOWER(email) = $1 LIMIT 1',

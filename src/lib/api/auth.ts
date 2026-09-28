@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { query } from '@/lib/db'
+import { query, isDatabaseConfigured } from '@/lib/db'
 import { verifySession } from '@/lib/session'
 import type { UserRole } from '@/types'
 
@@ -31,7 +31,7 @@ export async function requireAuth(_req: NextRequest): Promise<AuthGuard | NextRe
     }
 
     // Fallback query profile pertama jika ada database_url (untuk dev/setup)
-    if (process.env.DATABASE_URL) {
+    if (isDatabaseConfigured) {
       const fallbackProfile = await query(
         'SELECT id, email, nama, role, outlet_id FROM profiles ORDER BY created_at ASC LIMIT 1'
       )

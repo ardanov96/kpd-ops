@@ -37,9 +37,17 @@ export function normalizeConnectionString(url?: string): string | undefined {
   )
 }
 
+export const isDatabaseConfigured = Boolean(
+  process.env.DATABASE_URL ||
+  process.env.NEON_DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.SUPABASE_DB_URL
+)
+
 const rawConnectionString =
   process.env.DATABASE_URL ||
   process.env.NEON_DATABASE_URL ||
+  process.env.POSTGRES_URL ||
   process.env.SUPABASE_DB_URL ||
   'postgresql://postgres:postgres@localhost:5432/postgres'
 

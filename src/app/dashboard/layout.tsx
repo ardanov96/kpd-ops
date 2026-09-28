@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { query } from '@/lib/db'
+import { query, isDatabaseConfigured } from '@/lib/db'
 import { verifySession } from '@/lib/session'
 import Sidebar from '@/components/Sidebar'
 import MobileShell from '@/components/dashboard/MobileShell'
@@ -10,7 +10,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let profile = await verifySession<any>(cookieStore.get('session_user')?.value)
   let user: any = profile ? { id: profile.id, email: profile.email } : null
 
-  if (!profile && process.env.DATABASE_URL) {
+  if (!profile && isDatabaseConfigured) {
     try {
       const profileRes = await query(
         'SELECT p.*, o.kode as outlet_kode, o.nama as outlet_nama FROM profiles p LEFT JOIN outlets o ON o.id = p.outlet_id ORDER BY p.created_at ASC LIMIT 1'
@@ -32,7 +32,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let inventarisAlert = 0
   let pajakAlert = 0
 
-  if (process.env.DATABASE_URL) {
+  if (isDatabaseConfigured) {
     try {
       const kurirPromise = query('SELECT kode, nama, warna FROM kurir WHERE aktif IS NOT FALSE ORDER BY nama ASC')
       const invAlertPromise = query('SELECT COUNT(*)::int as count FROM v_stok_aktual WHERE is_below_min = true')

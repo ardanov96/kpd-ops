@@ -1,4 +1,4 @@
-import { query } from '@/lib/db'
+import { query, isDatabaseConfigured } from '@/lib/db'
 import OverviewClient from '@/components/dashboard/OverviewClient'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +17,7 @@ export default async function DashboardPage({
   let jneList: any[] = []
   let kurirList: any[] = []
 
-  if (process.env.DATABASE_URL) {
+  if (isDatabaseConfigured) {
     try {
       const results = await Promise.allSettled([
         query('SELECT * FROM v_summary_bulanan ORDER BY periode DESC'),
