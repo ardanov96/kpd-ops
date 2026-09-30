@@ -159,6 +159,15 @@ export default function AkuntingExpenseForm({
     if (!form.kategori_id) return showToast('Kategori wajib dipilih', 'err')
     if (!form.nominal || form.nominal <= 0) return showToast('Nominal harus > 0', 'err')
     if (!form.tanggal) return showToast('Tanggal wajib diisi', 'err')
+
+    const selKat = kategoriList.find((k) => k.id === form.kategori_id)
+    if (form.tipe === 'KELUAR' && selKat?.kode === '5100') {
+      return showToast(
+        'Kategori 5100 dicatat otomatis melalui Modul Inventaris (Metode A). Input manual diblokir.',
+        'err'
+      )
+    }
+
     setBusy(true)
     setUploadProgress(0)
     try {
@@ -279,12 +288,38 @@ export default function AkuntingExpenseForm({
             <select value={form.kategori_id} onChange={(e) => setForm({ ...form, kategori_id: e.target.value })}
               style={input()}>
               <option value="">-- pilih --</option>
-              {filteredKategori.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.kode} · {k.nama}
-                </option>
-              ))}
+              {filteredKategori.map((k) => {
+                const isAutoAtk = k.kode === '5100' && form.tipe === 'KELUAR'
+                return (
+                  <option key={k.id} value={k.id} disabled={isAutoAtk}>
+                    {k.kode} · {k.nama} {isAutoAtk ? '(🔒 Otomatis via Inventaris)' : ''}
+                  </option>
+                )
+              })}
             </select>
+            {form.tipe === 'KELUAR' && (
+              <div style={{
+                background: 'rgba(59, 130, 246, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.25)',
+                borderRadius: 8,
+                padding: '10px 12px',
+                marginTop: 8,
+                fontSize: 12,
+                lineHeight: 1.5,
+                color: '#93c5fd',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, marginBottom: 2 }}>
+                  <span>📦</span>
+                  <span>Metode A Aktif (Berbasis Pemakaian)</span>
+                </div>
+                <p style={{ margin: 0, color: '#bfdbfe', fontSize: 11 }}>
+                  Beban ATK & Packaging (<strong>5100</strong>) dicatat otomatis oleh sistem saat staf mencatat <em>Stok Keluar</em> di Modul Inventaris. Input manual dinonaktifkan untuk mencegah pencatatan ganda.
+                </p>
+                <a href="/dashboard/inventaris" style={{ color: '#60a5fa', textDecoration: 'underline', display: 'inline-block', marginTop: 4, fontWeight: 600, fontSize: 11 }}>
+                  Buka Modul Inventaris →
+                </a>
+              </div>
+            )}
           </Field>
 
           <Field label="Tanggal *">

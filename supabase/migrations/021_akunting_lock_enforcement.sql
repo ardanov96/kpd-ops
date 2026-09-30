@@ -100,11 +100,12 @@ BEGIN
   SELECT id INTO v_lion_kurir_id FROM kurir WHERE kode = 'LION' LIMIT 1;
   IF v_kategori_expense IS NULL OR v_lion_kurir_id IS NULL THEN RETURN; END IF;
 
-  -- Hitung Lion omzet bruto untuk bulan ini
-  SELECT COALESCE(SUM(discount + COALESCE(disc_others, 0)), 0)
+  -- Hitung Lion omzet bruto (total_biaya) untuk bulan ini
+  SELECT COALESCE(SUM(COALESCE(total_biaya, 0)), 0)
   INTO v_lion_omzet
   FROM transaksi
   WHERE outlet_id = p_outlet_id
+    AND kurir_id = v_lion_kurir_id
     AND to_char(tanggal, 'YYYY-MM') = p_periode
     AND status NOT IN ('CNX');
 

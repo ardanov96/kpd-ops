@@ -22,6 +22,7 @@ const SUMBER_LABEL: Record<string, string> = {
   MANUAL: '✍️ Manual',
   INVENTARIS: '📦 Inventaris',
   KURIR: '🚚 Kurir',
+  JNE: '📦 JNE',
   RECURRING: '🔁 Recurring',
   CLOSING: '🔒 Closing',
   PRIVE: '💸 Prive',

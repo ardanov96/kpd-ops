@@ -71,6 +71,11 @@ export default function AkuntingRecurringClient({
     if (form.tanggal_setiap_bulan < 1 || form.tanggal_setiap_bulan > 31) {
       return showToast('Tanggal harus 1-31', 'err')
     }
+    const selKat = kategoriList.find((k) => k.id === form.kategori_id)
+    if (form.tipe === 'KELUAR' && selKat?.kode === '5100') {
+      return showToast('Kategori 5100 tidak dapat dijadikan template recurring (Metode A).', 'err')
+    }
+
     setBusy(true)
     try {
       const payload = {
@@ -321,11 +326,14 @@ export default function AkuntingRecurringClient({
                 <option value="">-- pilih --</option>
                 {kategoriList
                   .filter((k) => (form.tipe === 'MASUK' ? k.tipe === 'INCOME' : k.tipe === 'EXPENSE'))
-                  .map((k) => (
-                    <option key={k.id} value={k.id}>
-                      {k.kode} · {k.nama}
-                    </option>
-                  ))}
+                  .map((k) => {
+                    const isAutoAtk = k.kode === '5100' && form.tipe === 'KELUAR'
+                    return (
+                      <option key={k.id} value={k.id} disabled={isAutoAtk}>
+                        {k.kode} · {k.nama} {isAutoAtk ? '(🔒 Otomatis via Inventaris)' : ''}
+                      </option>
+                    )
+                  })}
               </select>
             </Field>
 

@@ -49,9 +49,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const katRes = await query('SELECT id, tipe FROM kategori_akun WHERE id = $1 LIMIT 1', [kategori_id])
+    const katRes = await query('SELECT id, tipe, kode, nama FROM kategori_akun WHERE id = $1 LIMIT 1', [kategori_id])
     if (katRes.rows.length === 0) return apiBadRequest('Kategori tidak ditemukan')
     const kat = katRes.rows[0]
+
+    // ✅ Enforce Metode A: Blokir input manual kategori 5100 (Beban ATK & Packaging)
+    if (tipe === 'KELUAR' && kat.kode === '5100') {
+      return apiBadRequest(
+        'Kategori 5100 (Beban ATK & Packaging) dicatat otomatis melalui Modul Inventaris saat Stok Keluar (Metode A). Input manual diblokir untuk mencegah beban ganda. Silakan catat di Modul Inventaris.'
+      )
+    }
 
     const expectedTipe = tipe === 'MASUK' ? 'INCOME' : tipe === 'KELUAR' ? 'EXPENSE' : null
     const validTipeAkun = ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE']

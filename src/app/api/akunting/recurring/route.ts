@@ -40,6 +40,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const katRes = await query('SELECT kode, nama FROM kategori_akun WHERE id = $1 LIMIT 1', [kategori_id])
+    if (katRes.rows[0]?.kode === '5100') {
+      return apiBadRequest('Kategori 5100 (Beban ATK & Packaging) dicatat otomatis melalui Modul Inventaris (Metode A) dan tidak dapat dijadikan template recurring.')
+    }
+
     const res = await query(
       `INSERT INTO recurring_transactions (outlet_id, nama_template, kategori_id, tipe, nominal, metode, tanggal_setiap_bulan, aktif, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
