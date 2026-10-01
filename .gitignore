@@ -11,3 +11,4 @@ tscheck*.log
 
 .neon
 *.xlsx
+scratch/

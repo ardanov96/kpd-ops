@@ -6,6 +6,8 @@ import type { TipeTransaksiKeuangan, MetodeBayar, KategoriAkun, RecurringTransac
 import EmptyState from './EmptyState'
 import { useConfirm } from './ConfirmDialog'
 import { useToast } from './Toast'
+import { formatCurrencyAccounting, terbilang } from '@/lib/format/currency'
+
 
 type FormState = {
   nama_template: string
@@ -62,6 +64,14 @@ export default function AkuntingRecurringClient({
       aktif: r.aktif,
     })
     setShowForm(true)
+  }
+
+  function handleNominalChange(e: React.ChangeEvent<HTMLInputElement>) {
+    let val = e.target.value
+    val = val.replace(/[,.]00$/, '')
+    const raw = val.replace(/\D/g, '')
+    const num = raw ? parseInt(raw, 10) : 0
+    setForm((prev) => ({ ...prev, nominal: num }))
   }
 
   async function submit() {
@@ -339,9 +349,40 @@ export default function AkuntingRecurringClient({
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Field label="Nominal (Rp) *">
-                <input type="number" min="0" step="100" value={form.nominal || ''}
-                  onChange={(e) => setForm({ ...form, nominal: Number(e.target.value) })} style={input()} />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <span style={{
+                    position: 'absolute',
+                    left: 10,
+                    color: '#94a3b8',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    userSelect: 'none',
+                    pointerEvents: 'none',
+                  }}>
+                    Rp
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={form.nominal ? form.nominal.toLocaleString('id-ID') : ''}
+                    onChange={handleNominalChange}
+                    placeholder="0"
+                    style={{
+                      ...input(),
+                      paddingLeft: 34,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: '#f8fafc',
+                    }}
+                  />
+                </div>
+                {form.nominal > 0 && (
+                  <div style={{ color: '#38bdf8', fontSize: 11, fontStyle: 'italic', marginTop: 4 }}>
+                    {terbilang(form.nominal)}
+                  </div>
+                )}
               </Field>
+
               <Field label="Metode">
                 <select value={form.metode} onChange={(e) => setForm({ ...form, metode: e.target.value as MetodeBayar })}
                   style={input()}>

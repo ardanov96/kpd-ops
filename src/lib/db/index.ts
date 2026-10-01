@@ -103,8 +103,16 @@ function isTransientError(err: any): boolean {
     msg.includes('econnreset') ||
     msg.includes('etimedout') ||
     msg.includes('connection ended') ||
+    msg.includes('enotfound') ||
+    msg.includes('getaddrinfo') ||
+    msg.includes('eai_again') ||
+    code === 'ENOTFOUND' ||
+    code === 'EAI_AGAIN' ||
     code === 'ECONNRESET' ||
     code === 'ETIMEDOUT' ||
+    code === 'ECONNREFUSED' ||
+    code === 'EHOSTUNREACH' ||
+    code === 'ENETUNREACH' ||
     code === '57P01' || // admin_shutdown (Neon compute wake/restart)
     code === '57P02' || // crash_shutdown
     code === '57P03' || // cannot_connect_now
@@ -116,16 +124,19 @@ function isTransientError(err: any): boolean {
 
 export async function query<T extends QueryResultRow = any>(
   text: string,
-  params?: any[]
+  params?: any[],
+  retryCount = 0
 ): Promise<QueryResult<T>> {
   try {
     return await pool.query<T>(text, params)
   } catch (err: any) {
-    if (isTransientError(err)) {
-      console.warn('[db] query retry after transient connection error:', err?.message || err)
-      // Jeda 250ms sebelum retry agar pool dapat membuat socket baru yang sehat
-      await new Promise((resolve) => setTimeout(resolve, 250))
-      return await pool.query<T>(text, params)
+    if (isTransientError(err) && retryCount < 3) {
+      const delay = Math.min(300 * Math.pow(2, retryCount), 2000)
+      console.warn(
+        `[db] query retry #${retryCount + 1} after transient connection error (${err?.code || err?.message}): waiting ${delay}ms`
+      )
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      return await query<T>(text, params, retryCount + 1)
     }
     throw err
   }
@@ -143,18 +154,23 @@ export async function withTransaction<T>(
   fn: (run: <R extends QueryResultRow = any>(text: string, params?: any[]) => Promise<QueryResult<R>>) => Promise<T>
 ): Promise<T> {
   let client: any
-  try {
-    client = await pool.connect()
-  } catch (err: any) {
-    // Retry 1x jika koneksi timeout / terputus sementara (mis. Neon cold-start)
-    if (isTransientError(err)) {
-      console.warn('[db] withTransaction connect retry:', err?.message || err)
-      await new Promise((resolve) => setTimeout(resolve, 250))
+  let connectAttempts = 0
+  while (true) {
+    try {
       client = await pool.connect()
-    } else {
-      throw err
+      break
+    } catch (err: any) {
+      if (isTransientError(err) && connectAttempts < 3) {
+        connectAttempts++
+        const delay = Math.min(300 * Math.pow(2, connectAttempts), 2000)
+        console.warn(`[db] withTransaction connect retry #${connectAttempts}:`, err?.message || err)
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      } else {
+        throw err
+      }
     }
   }
+
 
   try {
     await client.query('BEGIN')

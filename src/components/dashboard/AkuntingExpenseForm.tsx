@@ -6,7 +6,7 @@ import type { TipeTransaksiKeuangan, TipeAkun, MetodeBayar, KategoriAkun, Transa
 import ViewFileButton from './ViewFileButton'
 import { useConfirm } from './ConfirmDialog'
 import { useToast } from './Toast'
-import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting } from '@/lib/format/currency'
+import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting, terbilang } from '@/lib/format/currency'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(n).toLocaleString('id-ID') + ',-'
@@ -98,6 +98,16 @@ export default function AkuntingExpenseForm({
     if (filterTipe && key !== 'tipe') params.set('tipe', filterTipe)
     if (value) params.set(key, value)
     router.push(`/dashboard/akunting/expense?${params.toString()}`)
+  }
+
+  function handleNominalChange(e: React.ChangeEvent<HTMLInputElement>) {
+    let val = e.target.value
+    // Bersihkan akhiran sen desimal seperti ",00" atau ".00" jika ada dari copy-paste invoice
+    val = val.replace(/[,.]00$/, '')
+    // Ambil hanya digit angka
+    const raw = val.replace(/\D/g, '')
+    const num = raw ? parseInt(raw, 10) : 0
+    setForm((prev) => ({ ...prev, nominal: num }))
   }
 
   // ============================================================
@@ -323,13 +333,139 @@ export default function AkuntingExpenseForm({
           </Field>
 
           <Field label="Tanggal *">
-            <input type="date" value={form.tanggal} onChange={(e) => setForm({ ...form, tanggal: e.target.value })} style={input()} />
+            <div style={{ position: 'relative' }}>
+              <input
+                type="date"
+                value={form.tanggal}
+                onChange={(e) => setForm({ ...form, tanggal: e.target.value })}
+                onClick={(e) => {
+                  try {
+                    (e.currentTarget as any).showPicker?.()
+                  } catch {}
+                }}
+                style={{
+                  ...input(),
+                  colorScheme: 'dark',
+                  cursor: 'pointer',
+                }}
+              />
+            </div>
           </Field>
 
           <Field label="Nominal (Rp) *">
-            <input type="number" min="0" step="100" value={form.nominal || ''}
-              onChange={(e) => setForm({ ...form, nominal: Number(e.target.value) })} style={input()} />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <span style={{
+                position: 'absolute',
+                left: 12,
+                color: '#94a3b8',
+                fontWeight: 700,
+                fontSize: 13,
+                userSelect: 'none',
+                pointerEvents: 'none',
+              }}>
+                Rp
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={form.nominal ? form.nominal.toLocaleString('id-ID') : ''}
+                onChange={handleNominalChange}
+                placeholder="0"
+                style={{
+                  ...input(),
+                  paddingLeft: 38,
+                  paddingRight: form.nominal > 0 ? 32 : 12,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  color: '#f8fafc',
+                }}
+              />
+              {form.nominal > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, nominal: 0 }))}
+                  title="Reset nominal"
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    padding: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = '#64748b')}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Tombol preset cepat */}
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              {[
+                { label: '+50rb', val: 50000 },
+                { label: '+100rb', val: 100000 },
+                { label: '+500rb', val: 500000 },
+                { label: '+1jt', val: 1000000 },
+              ].map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, nominal: (prev.nominal || 0) + p.val }))}
+                  style={{
+                    background: '#1e2433',
+                    border: '1px solid #2d3748',
+                    borderRadius: 6,
+                    padding: '3px 8px',
+                    color: '#94a3b8',
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#f97316'
+                    e.currentTarget.style.borderColor = '#f97316'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#94a3b8'
+                    e.currentTarget.style.borderColor = '#2d3748'
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Konfirmasi visual: Terbilang Rupiah untuk mencegah salah input digit nol */}
+            {form.nominal > 0 && (
+              <div style={{
+                marginTop: 8,
+                padding: '8px 12px',
+                background: 'rgba(56, 189, 248, 0.08)',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
+                borderRadius: 8,
+                fontSize: 12,
+                lineHeight: 1.4,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#38bdf8', fontWeight: 700 }}>
+                  <span>🏷️</span>
+                  <span>{formatCurrencyAccounting(form.nominal)}</span>
+                </div>
+                <div style={{ color: '#94a3b8', fontSize: 11, fontStyle: 'italic', marginTop: 2 }}>
+                  Terbilang: {terbilang(form.nominal)}
+                </div>
+              </div>
+            )}
           </Field>
+
 
           <Field label="Metode Bayar">
             <div style={{ display: 'flex', gap: 6 }}>

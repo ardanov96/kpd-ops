@@ -30,29 +30,30 @@ export default async function LaporanLabaRugiPage({
   let neraca: any = null
 
   try {
-    const lrRes = await query(
-      'SELECT * FROM v_laba_rugi WHERE outlet_id = $1 AND periode = $2 LIMIT 1',
-      [outlet.id, selectedPeriode]
-    )
+    const [lrRes, bdRes, cfRes, nRes] = await Promise.all([
+      query(
+        'SELECT * FROM v_laba_rugi WHERE outlet_id = $1 AND periode = $2 LIMIT 1',
+        [outlet.id, selectedPeriode]
+      ),
+      query(
+        'SELECT * FROM v_keuangan_per_kategori WHERE outlet_id = $1 AND periode = $2 ORDER BY kategori_tipe ASC, kategori_kode ASC',
+        [outlet.id, selectedPeriode]
+      ),
+      query(
+        'SELECT * FROM v_cashflow WHERE outlet_id = $1 AND periode = $2',
+        [outlet.id, selectedPeriode]
+      ),
+      query('SELECT * FROM v_neraca WHERE outlet_id = $1 LIMIT 1', [outlet.id]),
+    ])
+
     lr = lrRes.rows[0] || null
-
-    const bdRes = await query(
-      'SELECT * FROM v_keuangan_per_kategori WHERE outlet_id = $1 AND periode = $2 ORDER BY kategori_tipe ASC, kategori_kode ASC',
-      [outlet.id, selectedPeriode]
-    )
     breakdown = bdRes.rows
-
-    const cfRes = await query(
-      'SELECT * FROM v_cashflow WHERE outlet_id = $1 AND periode = $2',
-      [outlet.id, selectedPeriode]
-    )
     cashflow = cfRes.rows
-
-    const nRes = await query('SELECT * FROM v_neraca WHERE outlet_id = $1 LIMIT 1', [outlet.id])
     neraca = nRes.rows[0] || null
   } catch (e) {
     console.error('Error fetching laba-rugi page data:', e)
   }
+
 
   return (
     <AkuntingLaporanClient
