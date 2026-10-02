@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return apiBadRequest('Body harus JSON')
   }
-  const { outlet_id, nama_template, kategori_id, tipe, nominal, metode, tanggal_setiap_bulan, aktif } = body
+  const { outlet_id, nama_template, kategori_id, tipe, nominal, metode, tanggal_setiap_bulan, aktif, interval_bulan, barang_id } = body
 
   if (!outlet_id) return apiBadRequest('outlet_id wajib')
   if (!nama_template || !nama_template.trim()) return apiBadRequest('nama_template wajib')
@@ -41,15 +41,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const katRes = await query('SELECT kode, nama FROM kategori_akun WHERE id = $1 LIMIT 1', [kategori_id])
-    if (katRes.rows[0]?.kode === '5100') {
-      return apiBadRequest('Kategori 5100 (Beban ATK & Packaging) dicatat otomatis melalui Modul Inventaris (Metode A) dan tidak dapat dijadikan template recurring.')
+    if (katRes.rows[0]?.kode === '5100' && !barang_id) {
+      return apiBadRequest('Kategori 5100 (Beban ATK & Packaging) harus ditautkan ke barang inventaris (barang_id) agar pergerakan stok otomatis tersinkronisasi.')
     }
 
     const res = await query(
-      `INSERT INTO recurring_transactions (outlet_id, nama_template, kategori_id, tipe, nominal, metode, tanggal_setiap_bulan, aktif, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO recurring_transactions (outlet_id, nama_template, kategori_id, tipe, nominal, metode, tanggal_setiap_bulan, interval_bulan, barang_id, aktif, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [outlet_id, nama_template.trim(), kategori_id, tipe, n, metode || null, tgl, aktif !== false, profile.id]
+      [outlet_id, nama_template.trim(), kategori_id, tipe, n, metode || null, tgl, Math.max(1, Number(interval_bulan) || 1), barang_id || null, aktif !== false, profile.id]
     )
 
     return apiOk(res.rows[0], 201)
@@ -77,9 +77,11 @@ export async function GET(req: NextRequest) {
   try {
     let sql = `
       SELECT rt.*,
-        json_build_object('kode', k.kode, 'nama', k.nama) as kategori
+        json_build_object('kode', k.kode, 'nama', k.nama) as kategori,
+        case when b.id is not null then json_build_object('id', b.id, 'nama', b.nama, 'satuan', b.satuan) else null end as barang
       FROM recurring_transactions rt
       LEFT JOIN kategori_akun k ON k.id = rt.kategori_id
+      LEFT JOIN barang b ON b.id = rt.barang_id
       WHERE 1=1
     `
     const params: any[] = []

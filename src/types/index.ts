@@ -242,6 +242,7 @@ export interface TransaksiKeuangan {
   created_at: string
   // joined
   kategori?: KategoriAkun
+  barang?: { id: string; nama: string; satuan: string } | null
 }
 
 // View: v_laba_rugi
@@ -311,6 +312,8 @@ export interface RecurringTransaction {
   nominal: number
   metode?: MetodeBayar | null
   tanggal_setiap_bulan: number
+  interval_bulan?: number
+  barang_id?: string | null
   tipe: TipeTransaksiKeuangan
   aktif: boolean
   last_run?: string | null

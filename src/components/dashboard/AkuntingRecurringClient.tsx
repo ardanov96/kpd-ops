@@ -243,7 +243,18 @@ export default function AkuntingRecurringClient({
             )}
             {recurringList.map((r) => (
               <tr key={r.id} style={{ borderTop: '1px solid #1e2433', opacity: r.aktif ? 1 : 0.5 }}>
-                <td style={{ ...td(), fontWeight: 600 }}>{r.nama_template}</td>
+                <td style={{ ...td(), fontWeight: 600 }}>
+                  <div>{r.nama_template}</div>
+                  {r.barang && (
+                    <div style={{ fontSize: 11, color: '#38bdf8', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span>📦 Taut Inventaris:</span>
+                      <strong>{r.barang.nama}</strong>
+                      <span style={{ background: '#38bdf820', color: '#38bdf8', border: '1px solid #38bdf840', padding: '1px 5px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
+                        Auto-Zero Stok
+                      </span>
+                    </div>
+                  )}
+                </td>
                 <td style={td()}>
                   <span style={{
                     background: (r.tipe === 'MASUK' ? '#22c55e' : '#ef4444') + '20',
@@ -261,7 +272,16 @@ export default function AkuntingRecurringClient({
                 </td>
                 <td style={{ ...td(), color: '#94a3b8' }}>{r.metode || '—'}</td>
                 <td style={{ ...td(), textAlign: 'center' }}>
-                  Tgl <strong style={{ color: '#f97316' }}>{r.tanggal_setiap_bulan}</strong>
+                  <div>Tgl <strong style={{ color: '#f97316' }}>{r.tanggal_setiap_bulan}</strong></div>
+                  {r.interval_bulan && r.interval_bulan > 1 ? (
+                    <div style={{ fontSize: 10, color: '#a855f7', fontWeight: 700, marginTop: 2 }}>
+                      🔄 Tiap {r.interval_bulan} Bulan
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                      Bulanan
+                    </div>
+                  )}
                 </td>
                 <td style={td()}>
                   <button onClick={() => toggleAktif(r.id, r.aktif)} disabled={busy}

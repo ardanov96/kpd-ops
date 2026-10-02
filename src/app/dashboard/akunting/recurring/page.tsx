@@ -26,9 +26,11 @@ export default async function AkuntingRecurringPage() {
 
     const recRes = await query(`
       SELECT rt.*,
-        json_build_object('kode', k.kode, 'nama', k.nama, 'tipe', k.tipe) as kategori
+        json_build_object('kode', k.kode, 'nama', k.nama, 'tipe', k.tipe) as kategori,
+        case when b.id is not null then json_build_object('id', b.id, 'nama', b.nama, 'satuan', b.satuan) else null end as barang
       FROM recurring_transactions rt
       LEFT JOIN kategori_akun k ON k.id = rt.kategori_id
+      LEFT JOIN barang b ON b.id = rt.barang_id
       WHERE rt.outlet_id = $1
       ORDER BY rt.aktif DESC, rt.tanggal_setiap_bulan ASC
     `, [outlet.id])
