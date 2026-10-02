@@ -4,14 +4,14 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 
 const NAV = [
-  { href: '/dashboard/harian',                icon: '📅', label: 'Harian' },
   { href: '/dashboard',                       icon: '📊', label: 'Ringkasan & Analitik' },
+  { href: '/dashboard/harian',                icon: '📅', label: 'Analisis Harian' },
   { href: '/dashboard/transaksi',             icon: '📦', label: 'Transaksi' },
   { href: '/dashboard/akunting',              icon: '💰', label: 'Akunting' },
-  { href: '/dashboard/pajak',                 icon: '🧾', label: 'Pajak', alertKey: 'pajak' },
-  { href: '/dashboard/ongkir',                icon: '🔍', label: 'Cek Ongkir' },
-  { href: '/dashboard/upload',                icon: '📤', label: 'Import Laporan' },
-  { href: '/dashboard/inventaris',            icon: '📦', label: 'Inventaris', alertKey: 'inventaris' },
+  { href: '/dashboard/pajak',                 icon: '🏛️', label: 'Pajak', alertKey: 'pajak' },
+  { href: '/dashboard/ongkir',                icon: '🏷️', label: 'Cek Ongkir' },
+  { href: '/dashboard/upload',                icon: '📥', label: 'Import Laporan' },
+  { href: '/dashboard/inventaris',            icon: '📋', label: 'Inventaris', alertKey: 'inventaris' },
   { href: '/dashboard/profil',                icon: '⚙️', label: 'Pengaturan' },
 ]
 

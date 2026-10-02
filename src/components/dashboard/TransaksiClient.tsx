@@ -97,7 +97,7 @@ export default function TransaksiClient({
 
   const COLS = [
     { label: 'Tanggal', w: 90 },
-    { label: 'No. STT', w: 160 },
+    { label: 'No. Resi / STT', w: 160 },
     { label: 'Kurir', w: 70 },
     { label: 'Kota Tujuan', w: 130 },
     { label: 'Produk', w: 90 },
@@ -169,7 +169,7 @@ export default function TransaksiClient({
         <select className="input-base" style={{ width: 'auto', minWidth: 150 }}
           value={filters.status || ''} onChange={e => updateFilter('status', e.target.value)}>
           <option value="">Semua Status</option>
-          {['POD', 'CNX', 'PENDING', 'TRANSIT', 'RETURN'].map(s => (
+          {['POD', 'LUNAS', 'BELUM_LUNAS', 'CNX', 'PENDING', 'TRANSIT', 'RETURN'].map(s => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>

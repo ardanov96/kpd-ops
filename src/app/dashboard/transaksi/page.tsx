@@ -16,12 +16,14 @@ export default async function TransaksiPage({
   let kurirList: any[] = []
   let selectedKurirData: any = null
   let isJNE = false
+  let isLion = false
 
   try {
     const kurirRes = await query('SELECT id, kode, nama, warna FROM kurir WHERE aktif IS NOT FALSE ORDER BY nama ASC')
     kurirList = kurirRes.rows
     selectedKurirData = kurirList.find((k) => k.kode === params.kurir)
     isJNE = selectedKurirData?.kode === 'JNE'
+    isLion = selectedKurirData?.kode === 'LION'
   } catch (e) {
     console.error('Error fetching kurir:', e)
   }
@@ -33,9 +35,10 @@ export default async function TransaksiPage({
     ]
     selectedKurirData = kurirList.find((k) => k.kode === params.kurir)
     isJNE = selectedKurirData?.kode === 'JNE'
+    isLion = selectedKurirData?.kode === 'LION'
   }
 
-  // ── JNE ──
+  // ─── Khusus JNE: Jika tab JNE dipilih spesifik, tampilkan tabel detail Packing List ───
   if (isJNE && selectedKurirData) {
     let jneSql = 'SELECT * FROM jne_packing_list WHERE kurir_id = $1'
     let countSql = 'SELECT COUNT(*)::int as count FROM jne_packing_list WHERE kurir_id = $1'
@@ -113,37 +116,129 @@ export default async function TransaksiPage({
     )
   }
 
-  // ── Non-JNE ──
-  let whereClauses: string[] = ['1=1']
+  // ─── Semua Ekspedisi (Gabungan Lion Parcel & JNE) ATAU Lion Parcel Spesifik ───
   const sqlParams: any[] = []
+  const tWhere = ['1=1']
+  const jWhere = ['1=1']
 
-  if (params.kurir && selectedKurirData) {
-    sqlParams.push(selectedKurirData.id)
-    whereClauses.push(`t.kurir_id = $${sqlParams.length}`)
-  }
-  if (params.status) {
-    sqlParams.push(params.status)
-    whereClauses.push(`t.status = $${sqlParams.length}`)
-  }
   if (params.periode) {
     if (/^\d{4}-\d{2}$/.test(params.periode)) {
-      const [year, month] = params.periode.split('-')
-      const firstDay = `${year}-${month}-01`
-      const lastDay = new Date(Number(year), Number(month), 0).toISOString().slice(0, 10)
-
-      sqlParams.push(firstDay)
-      whereClauses.push(`t.tanggal >= $${sqlParams.length}`)
-      sqlParams.push(lastDay)
-      whereClauses.push(`t.tanggal <= $${sqlParams.length}`)
+      sqlParams.push(params.periode)
+      const pIdx = sqlParams.length
+      tWhere.push(`to_char(t.tanggal, 'YYYY-MM') = $${pIdx}`)
+      jWhere.push(`to_char(j.tanggal, 'YYYY-MM') = $${pIdx}`)
     } else if (/^\d{4}$/.test(params.periode)) {
-      sqlParams.push(`${params.periode}-01-01`)
-      whereClauses.push(`t.tanggal >= $${sqlParams.length}`)
-      sqlParams.push(`${params.periode}-12-31`)
-      whereClauses.push(`t.tanggal <= $${sqlParams.length}`)
+      sqlParams.push(params.periode)
+      const pIdx = sqlParams.length
+      tWhere.push(`to_char(t.tanggal, 'YYYY') = $${pIdx}`)
+      jWhere.push(`to_char(j.tanggal, 'YYYY') = $${pIdx}`)
     }
   }
 
-  const whereSql = whereClauses.join(' AND ')
+  if (params.status) {
+    sqlParams.push(params.status)
+    const sIdx = sqlParams.length
+    tWhere.push(`t.status = $${sIdx}`)
+    if (params.status === 'LUNAS') {
+      jWhere.push(`j.outstanding <= 0`)
+    } else if (params.status === 'BELUM_LUNAS') {
+      jWhere.push(`j.outstanding > 0`)
+    } else {
+      // Status khusus Lion Parcel (misal POD, CNX) tidak ada pada packing list JNE
+      jWhere.push('1=0')
+    }
+  }
+
+  const tWhereStr = tWhere.join(' AND ')
+  const jWhereStr = jWhere.join(' AND ')
+
+  let unionQuery = ''
+  let summaryQuery = ''
+
+  if (isLion) {
+    unionQuery = `
+      SELECT 
+        t.id, t.tanggal, t.nomor_stt,
+        json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir,
+        t.kota_tujuan, t.nama_produk, t.komoditas, t.koli,
+        t.berat_kena_biaya, t.biaya_asuransi, t.total_biaya,
+        t.potongan, t.diskon_booking, t.diskon_asuransi, t.diskon_forward_rate,
+        t.status
+      FROM transaksi t
+      JOIN kurir k ON k.id = t.kurir_id
+      WHERE ${tWhereStr}
+    `
+
+    summaryQuery = `
+      SELECT t.total_biaya, t.diskon_booking, t.diskon_asuransi, t.diskon_forward_rate, 
+             t.potongan, t.biaya_asuransi, t.nama_produk, t.komoditas, t.status,
+             to_char(t.tanggal, 'YYYY-MM') as periode,
+             'LION' as kurir_kode
+      FROM transaksi t
+      WHERE ${tWhereStr}
+    `
+  } else {
+    // Default: Semua Ekspedisi (Lion Parcel + JNE Express)
+    unionQuery = `
+      SELECT 
+        t.id, t.tanggal, t.nomor_stt,
+        json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir,
+        t.kota_tujuan, t.nama_produk, t.komoditas, t.koli,
+        t.berat_kena_biaya, t.biaya_asuransi, t.total_biaya,
+        t.potongan, t.diskon_booking, t.diskon_asuransi, t.diskon_forward_rate,
+        t.status
+      FROM transaksi t
+      JOIN kurir k ON k.id = t.kurir_id
+      WHERE ${tWhereStr}
+
+      UNION ALL
+
+      SELECT 
+        j.id, j.tanggal, j.nomor_pl as nomor_stt,
+        json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir,
+        'JNE Hub / Agen' as kota_tujuan,
+        'Packing List' as nama_produk,
+        (j.cnote_count || ' Paket Cnote') as komoditas,
+        j.coly as koli,
+        j.weight as berat_kena_biaya,
+        j.insurance as biaya_asuransi,
+        j.amount as total_biaya,
+        0 as potongan,
+        (j.discount + COALESCE(j.disc_others, 0)) as diskon_booking,
+        0 as diskon_asuransi,
+        0 as diskon_forward_rate,
+        CASE WHEN j.outstanding <= 0 THEN 'LUNAS' ELSE 'BELUM_LUNAS' END as status
+      FROM jne_packing_list j
+      JOIN kurir k ON k.id = j.kurir_id
+      WHERE ${jWhereStr}
+    `
+
+    summaryQuery = `
+      SELECT t.total_biaya, t.diskon_booking, t.diskon_asuransi, t.diskon_forward_rate, 
+             t.potongan, t.biaya_asuransi, t.nama_produk, t.komoditas, t.status,
+             to_char(t.tanggal, 'YYYY-MM') as periode,
+             'LION' as kurir_kode
+      FROM transaksi t
+      WHERE ${tWhereStr}
+
+      UNION ALL
+
+      SELECT
+        j.amount as total_biaya,
+        (j.discount + COALESCE(j.disc_others, 0)) as diskon_booking,
+        0 as diskon_asuransi,
+        0 as diskon_forward_rate,
+        0 as potongan,
+        j.insurance as biaya_asuransi,
+        'Packing List' as nama_produk,
+        (j.cnote_count || ' Paket Cnote') as komoditas,
+        CASE WHEN j.outstanding <= 0 THEN 'LUNAS' ELSE 'BELUM_LUNAS' END as status,
+        to_char(j.tanggal, 'YYYY-MM') as periode,
+        'JNE' as kurir_kode
+      FROM jne_packing_list j
+      WHERE ${jWhereStr}
+    `
+  }
 
   let transaksi: any[] = []
   let totalCount = 0
@@ -151,28 +246,15 @@ export default async function TransaksiPage({
 
   try {
     const dataSql = `
-      SELECT t.*,
-        json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir
-      FROM transaksi t
-      LEFT JOIN kurir k ON k.id = t.kurir_id
-      WHERE ${whereSql}
-      ORDER BY t.tanggal DESC
+      SELECT * FROM (${unionQuery}) u
+      ORDER BY u.tanggal DESC
       LIMIT ${pageSize} OFFSET ${offset}
     `
-    const countSql = `SELECT COUNT(*)::int as count FROM transaksi t WHERE ${whereSql}`
-    const sumSql = `
-      SELECT t.total_biaya, t.diskon_booking, t.diskon_asuransi, t.diskon_forward_rate, 
-             t.potongan, t.biaya_asuransi, t.nama_produk, t.komoditas, t.status,
-             to_char(t.tanggal, 'YYYY-MM') as periode,
-             k.kode as kurir_kode
-      FROM transaksi t
-      LEFT JOIN kurir k ON k.id = t.kurir_id
-      WHERE ${whereSql}
-    `
+    const countSql = `SELECT COUNT(*)::int as count FROM (${unionQuery}) u`
 
     const dRes = await query(dataSql, sqlParams)
     const cRes = await query(countSql, sqlParams)
-    const sRes = await query(sumSql, sqlParams)
+    const sRes = await query(summaryQuery, sqlParams)
 
     transaksi = dRes.rows
     totalCount = cRes.rows[0]?.count || 0
@@ -183,7 +265,7 @@ export default async function TransaksiPage({
 
   // Penalty Lion Parcel: dihitung on-the-fly per bulan/periode agar
   // konsisten dengan modul Ringkasan & Analitik.
-  // Aturan: Lion omzet > 0 dan < 3jt per bulan, mulai April 2024 → penalty 500rb per bulan
+  // Aturan: Lion omzet > 0 dan < 3jt per bulan, mulai April 2024 -> penalty 500rb per bulan
   const LION_PENALTY_START_PERIODE = '2024-04'
   const lionOmzetByPeriode: Record<string, number> = {}
   summaryData.forEach((r) => {
@@ -214,7 +296,9 @@ export default async function TransaksiPage({
   const subtotalNetProfit = totalKomisiFranchise - totalPenalty
 
   const produkCount: Record<string, number> = {}
-  nonCNX.forEach((r) => { if (r.nama_produk) produkCount[r.nama_produk] = (produkCount[r.nama_produk] || 0) + 1 })
+  nonCNX.forEach((r) => {
+    if (r.nama_produk) produkCount[r.nama_produk] = (produkCount[r.nama_produk] || 0) + 1
+  })
   const produkTerpopuler = Object.entries(produkCount).sort((a, b) => b[1] - a[1])[0] || null
 
   const komoditasAgg: Record<string, { count: number; omzet: number }> = {}

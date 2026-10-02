@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis,
-  Tooltip, Legend, CartesianGrid,
+  Tooltip, Legend, CartesianGrid, ReferenceLine,
 } from 'recharts'
 import type { LabaRugi } from '@/types'
 import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting } from '@/lib/format/currency'
@@ -139,15 +139,31 @@ export default function AkuntingClient({
       <div style={{ background: '#111827', border: '1px solid #1e2433', borderRadius: 12, padding: 16, marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>📈 Trend 6 Bulan Terakhir</h2>
         <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={chartData}>
-            <CartesianGrid stroke="#1e2433" strokeDasharray="3 3" />
-            <XAxis dataKey="periode" stroke="#64748b" fontSize={12} />
-            <YAxis stroke="#64748b" fontSize={12} tickFormatter={formatCurrencyShort} />
+          <LineChart data={chartData} margin={{ top: 12, right: 24, left: 16, bottom: 8 }}>
+            <CartesianGrid stroke="#1e2433" strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              dataKey="periode"
+              stroke="#64748b"
+              fontSize={12}
+              tickLine={false}
+              axisLine={{ stroke: '#1e2433' }}
+              padding={{ left: 24, right: 24 }}
+              dy={4}
+            />
+            <YAxis
+              stroke="#64748b"
+              fontSize={12}
+              width={75}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={formatCurrencyShort}
+            />
+            <ReferenceLine y={0} stroke="#334155" strokeDasharray="3 3" />
             <Tooltip
               contentStyle={{ background: '#0d111c', border: '1px solid #1e2433', borderRadius: 8, color: '#e2e8f0' }}
               formatter={(v: any) => formatCurrencyAccounting(Number(v))}
             />
-            <Legend wrapperStyle={{ fontSize: 12, color: '#94a3b8' }} />
+            <Legend wrapperStyle={{ fontSize: 12, color: '#94a3b8', paddingTop: 8 }} />
             <Line type="monotone" dataKey="income" name="Income" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} />
             <Line type="monotone" dataKey="expense" name="Expense" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} />
             <Line type="monotone" dataKey="laba" name="Laba" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
@@ -166,10 +182,13 @@ export default function AkuntingClient({
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={topExpense.map((b: any) => ({ name: b.kategori_kode, value: Number(b.nominal_expense) }))}>
-                <CartesianGrid stroke="#1e2433" strokeDasharray="3 3" />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
-                <YAxis stroke="#64748b" fontSize={11} tickFormatter={formatCurrencyShort} />
+              <BarChart
+                data={topExpense.map((b: any) => ({ name: b.kategori_kode, value: Number(b.nominal_expense) }))}
+                margin={{ top: 8, right: 16, left: 12, bottom: 4 }}
+              >
+                <CartesianGrid stroke="#1e2433" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={{ stroke: '#1e2433' }} />
+                <YAxis stroke="#64748b" fontSize={11} width={65} tickLine={false} axisLine={false} tickFormatter={formatCurrencyShort} />
                 <Tooltip
                   contentStyle={{ background: '#0d111c', border: '1px solid #1e2433', borderRadius: 8, color: '#e2e8f0' }}
                   formatter={(v: any) => formatCurrencyAccounting(Number(v))}

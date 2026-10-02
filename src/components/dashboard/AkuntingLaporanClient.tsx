@@ -115,36 +115,38 @@ export default function AkuntingLaporanClient({
   }
 
   function getPdfOptions(): PdfExportOptions {
-    const lrRows = [
-      { cells: ['PENDAPATAN', '', '', ''] },
-      ...incomeItems.map((b: any): { cells: (string | number)[] } => ({
-        cells: ['', b.kategori_kode, b.kategori_nama, formatCurrencyAccounting(b.nominal_income)],
-      })),
-      { cells: ['Total Income', '', '', formatCurrencyAccounting(income)], isTotal: true },
-      { cells: ['', '', '', ''], isEmpty: true },
-      { cells: ['BEBAN', '', '', ''] },
-      ...expenseItems.map((b: any): { cells: (string | number)[] } => ({
-        cells: ['', b.kategori_kode, b.kategori_nama, formatCurrencyAccounting(b.nominal_expense)],
-      })),
-      { cells: ['Total Expense', '', '', formatCurrencyAccounting(expense)], isTotal: true },
-      { cells: ['', '', '', ''], isEmpty: true },
-      { cells: ['LABA KOTOR', '', '', formatCurrencyAccounting(laba)], isTotal: true },
-    ]
     return {
-      reportTitle: 'Laporan Keuangan',
-      reportSubtitle: `Periode ${selectedPeriode}`,
-      wpInfo: {
-        nama_wp: outlet.nama,
-        outlet_nama: outlet.nama,
-        outlet_kode: outlet.kode,
+      reportData: {
+        outlet,
+        selectedPeriode,
+        income,
+        expense,
+        laba,
+        incomeItems: incomeItems.map((b: any) => ({
+          kategori_kode: b.kategori_kode,
+          kategori_nama: b.kategori_nama,
+          nominal_income: Number(b.nominal_income),
+          jumlah_transaksi: b.jumlah_transaksi,
+        })),
+        expenseItems: expenseItems.map((b: any) => ({
+          kategori_kode: b.kategori_kode,
+          kategori_nama: b.kategori_nama,
+          nominal_expense: Number(b.nominal_expense),
+          jumlah_transaksi: b.jumlah_transaksi,
+        })),
+        cashflow: cashflow.map((c: any) => ({
+          metode: c.metode,
+          cashflow: Number(c.cashflow),
+        })),
+        neraca: neraca
+          ? {
+              total_aset_kas: neraca.total_aset_kas,
+              total_modal_pemilik: neraca.total_modal_pemilik,
+              total_equity: neraca.total_equity,
+              selisih: neraca.selisih,
+            }
+          : null,
       },
-      columns: [
-        { header: 'Section / Kategori', width: '2.5', align: 'left' },
-        { header: 'Kode', width: '1', align: 'left' },
-        { header: 'Nama Akun', width: '4', align: 'left' },
-        { header: 'Nominal', width: '2', align: 'right', bold: true },
-      ],
-      rows: lrRows,
     }
   }
 

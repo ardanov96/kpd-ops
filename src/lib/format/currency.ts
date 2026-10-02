@@ -12,11 +12,26 @@
  * Contoh: 1500000 → "Rp 1.5jt", 2500000000 → "Rp 2.5M", 50000 → "Rp 50rb", 500 → "Rp 500"
  */
 export function formatCurrencyShort(n: number | null | undefined): string {
-  if (n === null || n === undefined || isNaN(n)) return 'Rp 0'
-  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1)}M`
-  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1)}jt`
-  if (n >= 1_000) return `Rp ${(n / 1_000).toFixed(0)}rb`
-  return `Rp ${n}`
+  if (n === null || n === undefined || isNaN(n) || n === 0) return 'Rp 0'
+  const sign = n < 0 ? '-Rp ' : 'Rp '
+  const abs = Math.abs(n)
+
+  if (abs >= 1_000_000_000) {
+    const val = abs / 1_000_000_000
+    const str = val >= 10 || val % 1 === 0 ? val.toFixed(0) : val.toFixed(1).replace(/\.0$/, '')
+    return `${sign}${str}M`
+  }
+  if (abs >= 1_000_000) {
+    const val = abs / 1_000_000
+    const str = val >= 10 || val % 1 === 0 ? val.toFixed(0) : val.toFixed(1).replace(/\.0$/, '')
+    return `${sign}${str}jt`
+  }
+  if (abs >= 1_000) {
+    const val = abs / 1_000
+    const str = val >= 10 || val % 1 === 0 ? val.toFixed(0) : val.toFixed(1).replace(/\.0$/, '')
+    return `${sign}${str}rb`
+  }
+  return `${sign}${Math.round(abs)}`
 }
 
 /**
@@ -27,7 +42,7 @@ export function formatCurrency(n: number | null | undefined): string {
   if (n === null || n === undefined || isNaN(n)) return 'Rp 0'
   if (n === 0) return 'Rp 0'
   const formatted = Math.round(Math.abs(n)).toLocaleString('id-ID')
-  return n < 0 ? `−Rp ${formatted}` : `Rp ${formatted}`
+  return n < 0 ? `-Rp ${formatted}` : `Rp ${formatted}`
 }
 
 /**
@@ -38,7 +53,7 @@ export function formatCurrencyAccounting(n: number | null | undefined): string {
   if (n === null || n === undefined || isNaN(n)) return 'Rp. 0,-'
   if (n === 0) return 'Rp. 0,-'
   const formatted = Math.round(Math.abs(n)).toLocaleString('id-ID')
-  return n < 0 ? `−Rp. ${formatted},-` : `Rp. ${formatted},-`
+  return n < 0 ? `-Rp. ${formatted},-` : `Rp. ${formatted},-`
 }
 
 /**

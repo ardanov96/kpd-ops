@@ -1,174 +1,143 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useMemo } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  BarChart, Bar, Cell, Legend,
+  ResponsiveContainer,
+  ComposedChart,
+  Line,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
 } from 'recharts'
-import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting } from '@/lib/format/currency'
+import { formatCurrency, formatCurrencyShort, formatCurrencyAccounting } from '@/lib/format/currency'
 
-// ─── Types ─────────────────────────────────────────────────────
-type SummaryRow = {
+// ============================================================
+// TYPES
+// ============================================================
+
+export interface SummaryHarianRow {
   outlet: string
   kurir_kode: string
   kurir_nama: string
   kurir_warna: string
   tanggal: string
-  total_paket: number
-  total_koli: number
-  total_omzet: number
-  total_diskon: number
-  net_omzet: number
-  pod_count: number
-  cnx_count: number
-  cod_count: number
-  noncod_count: number
+  total_paket: number | string
+  total_koli: number | string
+  total_omzet: number | string
+  total_diskon: number | string
+  net_omzet: number | string
+  pod_count: number | string
+  cnx_count: number | string
+  cod_count: number | string
+  noncod_count: number | string
 }
 
-type RecentTx = {
-  id: string
-  nomor_stt: string
-  tanggal: string
-  kota_tujuan: string
-  total_biaya: number
-  status: string
-  jenis_kiriman: string
-  kurir: { kode: string; nama: string; warna: string } | null
+export interface KurirOption {
+  kode: string
+  nama: string
+  warna: string
 }
 
-type Kurir = { kode: string; nama: string; warna: string }
+// ============================================================
+// HELPERS
+// ============================================================
 
-// ─── Formatters ───────────────────────────────────────────────
-const fmt = (n: number) =>
-  n >= 1_000_000 ? `Rp ${(n / 1_000_000).toFixed(1)}jt`
-  : n >= 1_000   ? `Rp ${(n / 1_000).toFixed(0)}rb`
-  : `Rp ${n}`
-
-const fmtFull = (n: number) =>
-  n.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
-
-const STATUS_COLOR: Record<string, string> = {
-  POD: '#22c55e',
-  CNX: '#ef4444',
-  PENDING: '#f59e0b',
-  TRANSIT: '#3b82f6',
-  DELIVERED: '#22c55e',
-}
-
-const RANGE_OPTIONS = [
-  { value: '7',  label: '7 Hari' },
-  { value: '14', label: '14 Hari' },
-  { value: '30', label: '30 Hari' },
-  { value: '90', label: '90 Hari' },
+const DAYS_NAME = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+const MONTHS_INDO = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ]
 
-// ─── Sub Components ───────────────────────────────────────────
-function KpiCard({
-  label, value, sub, icon, color, delta,
-}: {
-  label: string; value: string; sub: string; icon: string; color: string
-  delta?: { value: number; positive: boolean }
-}) {
-  return (
-    <div className="card" style={{ padding: '18px 20px', position: 'relative', overflow: 'hidden' }}>
-      <div style={{
-        position: 'absolute', top: 0, left: 0, width: 4, height: '100%',
-        background: color, borderRadius: '14px 0 0 14px',
-      }} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{
-            fontSize: 11, color: '#64748b', marginBottom: 6,
-            textTransform: 'uppercase', letterSpacing: '0.5px',
-          }}>{label}</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color }}>{value}</div>
-          <div style={{
-            fontSize: 11, color: '#475569', marginTop: 4,
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            <span>{sub}</span>
-            {delta && (
-              <span style={{
-                fontSize: 10, fontWeight: 700,
-                color: delta.positive ? '#22c55e' : '#ef4444',
-                background: delta.positive ? '#22c55e15' : '#ef444415',
-                padding: '2px 6px', borderRadius: 4,
-              }}>
-                {delta.positive ? '↑' : '↓'} {Math.abs(delta.value).toFixed(1)}%
-              </span>
-            )}
-          </div>
-        </div>
-        <div style={{ fontSize: 26 }}>{icon}</div>
-      </div>
-    </div>
-  )
+function formatPeriodeIndo(periodeStr: string): string {
+  if (!periodeStr) return ''
+  const parts = periodeStr.split('-')
+  if (parts.length < 2) return periodeStr
+  const year = parts[0]
+  const mIndex = parseInt(parts[1], 10) - 1
+  if (mIndex >= 0 && mIndex < 12) {
+    return `${MONTHS_INDO[mIndex]} ${year}`
+  }
+  return periodeStr
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const color = STATUS_COLOR[status] || '#64748b'
-  return (
-    <span style={{
-      fontSize: 10, fontWeight: 700, padding: '3px 8px',
-      borderRadius: 4, color, background: color + '20',
-      border: `1px solid ${color}40`,
-    }}>{status}</span>
-  )
+function formatDateIndo(dateStr: string): { full: string; dayName: string; short: string } {
+  if (!dateStr) return { full: '-', dayName: '-', short: '-' }
+  const parts = String(dateStr).slice(0, 10).split('-')
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10)
+    const m = parseInt(parts[1], 10) - 1
+    const d = parseInt(parts[2], 10)
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      const dt = new Date(y, m, d)
+      if (!isNaN(dt.getTime())) {
+        const dayName = DAYS_NAME[dt.getDay()] || '-'
+        const dayNum = String(d).padStart(2, '0')
+        const monthName = MONTHS_INDO[m]?.slice(0, 3) || ''
+        const full = `${dayName}, ${dayNum} ${monthName} ${y}`
+        const short = `${dayNum} ${monthName}`
+        return { full, dayName, short }
+      }
+    }
+  }
+  return { full: String(dateStr), dayName: '-', short: String(dateStr) }
 }
 
-// ─── Main Component ───────────────────────────────────────────
+// ============================================================
+// COMPONENT
+// ============================================================
+
 export default function HarianClient({
-  summary, summary7d, recentTx, kurirList, todayStr,
+  summary,
+  kurirList,
+  selectedPeriode,
+  availablePeriods,
+  initialKurir,
 }: {
-  summary: SummaryRow[]
-  summary7d: SummaryRow[]
-  recentTx: RecentTx[]
-  kurirList: Kurir[]
-  todayStr: string
+  summary: SummaryHarianRow[]
+  kurirList: KurirOption[]
+  selectedPeriode: string
+  availablePeriods: string[]
+  initialKurir: string
 }) {
   const router = useRouter()
+  const pathname = usePathname()
 
-  // ─── State ────────────────────────────────────────────────
-  const [range, setRange] = useState('30')
-  const [selectedKurir, setSelectedKurir] = useState<string>('')
-  const [autoRefresh, setAutoRefresh] = useState(true)
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+  const [selectedKurir, setSelectedKurir] = useState<string>(initialKurir)
 
-  // ─── Auto-refresh (refresh page every 5 minutes) ──────────
-  useEffect(() => {
-    if (!autoRefresh) return
-    const t = setInterval(() => {
-      setLastRefresh(new Date())
-      // router.refresh() = soft refresh, pertahankan scroll & form state
-      router.refresh()
-    }, 5 * 60 * 1000)
-    return () => clearInterval(t)
-  }, [autoRefresh, router])
-
-  // ─── Filter Logic ─────────────────────────────────────────
-  const filtered = useMemo(() => {
-    // range = '7' → pakai summary7d (sudah 7 hari dari server)
-    // range = '14' / '30' → filter summary (30 hari dari server) by date
-    let base = range === '7' ? summary7d : summary
-    let data = base
-    if (range !== '7' && (range === '14' || range === '30')) {
-      const days = Number(range)
-      const cutoff = new Date(todayStr)
-      cutoff.setDate(cutoff.getDate() - (days - 1)) // include today
-      const cutoffStr = cutoff.toISOString().slice(0, 10)
-      data = base.filter(d => String(d.tanggal || '').slice(0, 10) >= cutoffStr)
+  function updateFilter(key: string, value: string) {
+    const params = new URLSearchParams()
+    if (key === 'periode') {
+      params.set('periode', value)
+      if (selectedKurir) params.set('kurir', selectedKurir)
+    } else if (key === 'kurir') {
+      if (value) params.set('kurir', value)
+      params.set('periode', selectedPeriode)
+      setSelectedKurir(value)
     }
-    // range = '90' di luar jangkauan data server (hanya 30 hari),
-    // fall back ke summary penuh (30 hari) + tampilkan warning di header
-    if (selectedKurir) data = data.filter(d => d.kurir_kode === selectedKurir)
-    return data
-  }, [summary, summary7d, selectedKurir, range, todayStr])
+    router.push(`${pathname}?${params.toString()}`)
+  }
 
-  // Aggregate by tanggal (sum across outlets & kurir)
-  const byDate = useMemo(() => {
-    const map: Record<string, {
+  // Filter raw summary rows
+  const filteredSummary = useMemo(() => {
+    if (!selectedKurir) return summary
+    return summary.filter(r => r.kurir_kode === selectedKurir)
+  }, [summary, selectedKurir])
+
+  // Aggregate per tanggal
+  const dailyData = useMemo(() => {
+    const mapByDate: Record<string, {
       tanggal: string
+      dateLabel: string
+      fullLabel: string
+      dayName: string
+      lion_paket: number
+      lion_omzet: number
+      jne_paket: number
+      jne_omzet: number
       total_paket: number
       total_omzet: number
       total_diskon: number
@@ -176,362 +145,554 @@ export default function HarianClient({
       pod_count: number
       cnx_count: number
     }> = {}
-    filtered.forEach(d => {
-      const tgl = typeof d.tanggal === 'string' ? d.tanggal : (d.tanggal as any) instanceof Date ? (d.tanggal as any).toISOString().slice(0, 10) : String(d.tanggal || '')
-      if (!map[tgl]) {
-        map[tgl] = {
-          tanggal: tgl,
-          total_paket: 0, total_omzet: 0, total_diskon: 0,
-          net_omzet: 0, pod_count: 0, cnx_count: 0,
+
+    filteredSummary.forEach(r => {
+      const d = String(r.tanggal || '').slice(0, 10)
+      if (!d) return
+
+      if (!mapByDate[d]) {
+        const { full, dayName, short } = formatDateIndo(d)
+        mapByDate[d] = {
+          tanggal: d,
+          dateLabel: short,
+          fullLabel: full,
+          dayName,
+          lion_paket: 0,
+          lion_omzet: 0,
+          jne_paket: 0,
+          jne_omzet: 0,
+          total_paket: 0,
+          total_omzet: 0,
+          total_diskon: 0,
+          net_omzet: 0,
+          pod_count: 0,
+          cnx_count: 0,
         }
       }
-      const m = map[tgl]
-      m.total_paket += d.total_paket
-      m.total_omzet += d.total_omzet
-      m.total_diskon += d.total_diskon
-      m.net_omzet += d.net_omzet
-      m.pod_count += d.pod_count
-      m.cnx_count += d.cnx_count
+
+      const pkt = Number(r.total_paket) || 0
+      const omz = Number(r.total_omzet) || 0
+      const dsk = Number(r.total_diskon) || 0
+      const net = Number(r.net_omzet) || 0
+      const pod = Number(r.pod_count) || 0
+      const cnx = Number(r.cnx_count) || 0
+
+      if (r.kurir_kode === 'LION') {
+        mapByDate[d].lion_paket += pkt
+        mapByDate[d].lion_omzet += omz
+        mapByDate[d].pod_count += pod
+        mapByDate[d].cnx_count += cnx
+      } else if (r.kurir_kode === 'JNE') {
+        mapByDate[d].jne_paket += pkt
+        mapByDate[d].jne_omzet += omz
+      }
+
+      mapByDate[d].total_paket += pkt
+      mapByDate[d].total_omzet += omz
+      mapByDate[d].total_diskon += dsk
+      mapByDate[d].net_omzet += net
     })
-    return Object.values(map).sort((a, b) => a.tanggal.localeCompare(b.tanggal))
-  }, [filtered])
 
-  // ─── Today KPI (from full summary, not filtered by range) ──
-  const todayData = useMemo(() => {
-    const todayRows = summary.filter(d => d.tanggal === todayStr)
-    let total_paket = 0, total_omzet = 0, total_diskon = 0,
-        net_omzet = 0, pod_count = 0, cnx_count = 0
-    todayRows.forEach(d => {
-      total_paket += d.total_paket
-      total_omzet += d.total_omzet
-      total_diskon += d.total_diskon
-      net_omzet += d.net_omzet
-      pod_count += d.pod_count
-      cnx_count += d.cnx_count
-    })
-    return { total_paket, total_omzet, total_diskon, net_omzet, pod_count, cnx_count }
-  }, [summary, todayStr])
+    return Object.values(mapByDate).sort((a, b) => a.tanggal.localeCompare(b.tanggal))
+  }, [filteredSummary])
 
-  // ─── Comparison vs same day last week ─────────────────────
-  const lastWeek = useMemo(() => {
-    const d = new Date(todayStr)
-    d.setDate(d.getDate() - 7)
-    const lastWeekStr = d.toISOString().slice(0, 10)
-    const rows = summary.filter(r => r.tanggal === lastWeekStr)
-    let total_paket = 0, total_omzet = 0
-    rows.forEach(r => {
-      total_paket += r.total_paket
-      total_omzet += r.total_omzet
-    })
-    return { total_paket, total_omzet, str: lastWeekStr }
-  }, [summary, todayStr])
+  // KPIs
+  const stats = useMemo(() => {
+    const totalOmzet = dailyData.reduce((acc, d) => acc + d.total_omzet, 0)
+    const totalPaket = dailyData.reduce((acc, d) => acc + d.total_paket, 0)
+    const totalNet = dailyData.reduce((acc, d) => acc + d.net_omzet, 0)
+    const totalPod = dailyData.reduce((acc, d) => acc + d.pod_count, 0)
+    const totalCnx = dailyData.reduce((acc, d) => acc + d.cnx_count, 0)
 
-  const calcDelta = (current: number, previous: number): { value: number; positive: boolean } | undefined => {
-    if (!previous) return undefined
-    const v = ((current - previous) / previous) * 100
-    return { value: v, positive: v >= 0 }
-  }
+    const activeDays = dailyData.length || 1
+    const avgOmzetPerDay = Math.round(totalOmzet / activeDays)
+    const avgPaketPerDay = (totalPaket / activeDays).toFixed(1)
 
-  // ─── Top 5 Kurir (aggregate 30d) ──────────────────────────
-  const topKurir = useMemo(() => {
-    const map: Record<string, {
-      kode: string; nama: string; warna: string
-      total_paket: number; total_omzet: number
-    }> = {}
-    filtered.forEach(d => {
-      const k = d.kurir_kode
-      if (!map[k]) {
-        map[k] = {
-          kode: k, nama: d.kurir_nama, warna: d.kurir_warna || '#64748b',
-          total_paket: 0, total_omzet: 0,
+    // Peak day (hari tersibuk)
+    const peakDay = dailyData.length > 0
+      ? [...dailyData].sort((a, b) => b.total_omzet - a.total_omzet)[0]
+      : null
+
+    const podRate = (totalPod + totalCnx > 0)
+      ? ((totalPod / (totalPod + totalCnx)) * 100).toFixed(1)
+      : '100'
+
+    return {
+      totalOmzet,
+      totalPaket,
+      totalNet,
+      activeDays,
+      avgOmzetPerDay,
+      avgPaketPerDay,
+      peakDay,
+      podRate,
+      totalPod,
+      totalCnx,
+    }
+  }, [dailyData])
+
+  // Day of Week Distribution (Pola Mingguan: Senin s/d Minggu)
+  const dayOfWeekDistribution = useMemo(() => {
+    const list = [
+      { name: 'Senin', paket: 0, omzet: 0, count: 0 },
+      { name: 'Selasa', paket: 0, omzet: 0, count: 0 },
+      { name: 'Rabu', paket: 0, omzet: 0, count: 0 },
+      { name: 'Kamis', paket: 0, omzet: 0, count: 0 },
+      { name: 'Jumat', paket: 0, omzet: 0, count: 0 },
+      { name: 'Sabtu', paket: 0, omzet: 0, count: 0 },
+      { name: 'Minggu', paket: 0, omzet: 0, count: 0 },
+    ]
+
+    dailyData.forEach(d => {
+      const parts = String(d.tanggal || '').slice(0, 10).split('-')
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10)
+        const m = parseInt(parts[1], 10) - 1
+        const day = parseInt(parts[2], 10)
+        if (!isNaN(y) && !isNaN(m) && !isNaN(day)) {
+          const dt = new Date(y, m, day)
+          if (!isNaN(dt.getTime())) {
+            const rawDay = dt.getDay() // 0 = Minggu, 1 = Senin, ...
+            const targetIndex = rawDay === 0 ? 6 : rawDay - 1
+            list[targetIndex].paket += d.total_paket
+            list[targetIndex].omzet += d.total_omzet
+            list[targetIndex].count += 1
+          }
         }
       }
-      map[k].total_paket += d.total_paket
-      map[k].total_omzet += d.total_omzet
     })
-    return Object.values(map)
-      .sort((a, b) => b.total_omzet - a.total_omzet)
-      .slice(0, 5)
-  }, [filtered])
 
-  // ─── Recent Activity (with kurir filter) ──────────────────
-  const filteredRecent = useMemo(() => {
-    if (!selectedKurir) return recentTx
-    return recentTx.filter(t => t.kurir?.kode === selectedKurir)
-  }, [recentTx, selectedKurir])
+    const maxPaket = Math.max(...list.map(l => l.paket), 1)
+    const busiestDay = [...list].sort((a, b) => b.paket - a.paket)[0]
 
-  // ─── 7-day chart data ─────────────────────────────────────
-  const chart7d = useMemo(() => {
-    return [...byDate].slice(-7).map(d => ({
-      tanggal: String(d.tanggal || '').slice(5), // MM-DD
-      Omzet: d.total_omzet,
-      'Net Omzet': d.net_omzet,
-    }))
-  }, [byDate])
+    return { list, maxPaket, busiestDay }
+  }, [dailyData])
 
-  // ─── Pod Rate ─────────────────────────────────────────────
-  const podRate = todayData.total_paket > 0
-    ? (todayData.pod_count / todayData.total_paket) * 100
-    : 0
-
-  // ─── Render ───────────────────────────────────────────────
   return (
-    <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-
-      {/* Header + Filter Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+    <div style={{ padding: '24px 32px', color: '#f1f5f9' }}>
+      {/* Header bar */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        flexWrap: 'wrap', gap: 16, marginBottom: 24,
+      }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9', margin: 0 }}>📅 Dashboard Harian</h1>
-          <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
-            Monitoring real-time · Last update: {lastRefresh.toLocaleTimeString('id-ID')}
-            {range === '90' && (
-              <span style={{ color: '#f59e0b', marginLeft: 8 }}>· 90 hari belum didukung (data 30 hari)</span>
-            )}
+          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>📅 Analisis Performa Harian</h1>
+          <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
+            Pola operasional kalender harian, hari tersibuk (peak day), dan distribusi kiriman outlet.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {/* Range filter */}
-          <select
-            value={range}
-            onChange={(e) => setRange(e.target.value)}
-            style={{
-              padding: '8px 12px', borderRadius: 8, fontSize: 13,
-              background: '#1e2433', color: '#f1f5f9', border: '1px solid #2d3748',
-            }}
-          >
-            {RANGE_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
 
-          {/* Kurir filter */}
-          <select
-            value={selectedKurir}
-            onChange={(e) => setSelectedKurir(e.target.value)}
-            style={{
-              padding: '8px 12px', borderRadius: 8, fontSize: 13,
-              background: '#1e2433', color: '#f1f5f9', border: '1px solid #2d3748',
-            }}
-          >
-            <option value="">Semua Kurir</option>
-            {kurirList.map(k => (
-              <option key={k.kode} value={k.kode}>{k.nama}</option>
-            ))}
-          </select>
+        {/* Filter Toolbar */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Periode selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>Periode:</span>
+            <select
+              className="input-base"
+              style={{
+                width: 'auto', minWidth: 160, background: '#0d111c',
+                border: '1px solid #1e2433', borderRadius: 8, padding: '8px 12px',
+                color: '#f1f5f9', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              }}
+              value={selectedPeriode}
+              onChange={(e) => updateFilter('periode', e.target.value)}
+            >
+              {availablePeriods.map(p => (
+                <option key={p} value={p}>
+                  {formatPeriodeIndo(p)} ({p})
+                </option>
+              ))}
+            </select>
+          </div>
 
-          {/* Auto-refresh toggle */}
-          <button
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            style={{
-              padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer',
-              background: autoRefresh ? '#22c55e20' : '#1e2433',
-              color: autoRefresh ? '#22c55e' : '#94a3b8',
-              border: `1px solid ${autoRefresh ? '#22c55e40' : '#2d3748'}`,
-              fontWeight: 600,
-            }}
-          >
-            {autoRefresh ? '🟢 Auto-refresh ON' : '⚫ Auto-refresh OFF'}
-          </button>
+          {/* Kurir Quick Switcher */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={() => updateFilter('kurir', '')}
+              style={{
+                background: !selectedKurir ? 'linear-gradient(135deg, #f97316, #ef4444)' : '#111827',
+                color: !selectedKurir ? '#fff' : '#94a3b8',
+                border: `1px solid ${!selectedKurir ? '#f97316' : '#1e2433'}`,
+                borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              Semua Ekspedisi
+            </button>
+            <button
+              onClick={() => updateFilter('kurir', 'LION')}
+              style={{
+                background: selectedKurir === 'LION' ? '#f97316' : '#111827',
+                color: selectedKurir === 'LION' ? '#fff' : '#94a3b8',
+                border: `1px solid ${selectedKurir === 'LION' ? '#f97316' : '#1e2433'}`,
+                borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              📦 Lion Parcel
+            </button>
+            <button
+              onClick={() => updateFilter('kurir', 'JNE')}
+              style={{
+                background: selectedKurir === 'JNE' ? '#ef4444' : '#111827',
+                color: selectedKurir === 'JNE' ? '#fff' : '#94a3b8',
+                border: `1px solid ${selectedKurir === 'JNE' ? '#ef4444' : '#1e2433'}`,
+                borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              🔴 JNE Express
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* 5 KPI Cards */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: 16,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+        gap: 14,
+        marginBottom: 24,
       }}>
-        <KpiCard
-          label="Paket Hari Ini"
-          value={todayData.total_paket.toLocaleString('id-ID')}
-          sub={`vs ${lastWeek.total_paket} paket (7 hari lalu)`}
-          icon="📦"
-          color="#f97316"
-          delta={calcDelta(todayData.total_paket, lastWeek.total_paket)}
-        />
-        <KpiCard
-          label="Omzet Hari Ini"
-          value={formatCurrencyShort(todayData.total_omzet)}
-          sub={formatCurrency(todayData.total_omzet)}
-          icon="💰"
-          color="#22c55e"
-          delta={calcDelta(todayData.total_omzet, lastWeek.total_omzet)}
-        />
-        <KpiCard
-          label="Net Omzet"
-          value={formatCurrencyShort(todayData.net_omzet)}
-          sub="Setelah potongan"
-          icon="📊"
-          color="#3b82f6"
-        />
-        <KpiCard
-          label="POD Rate"
-          value={`${podRate.toFixed(1)}%`}
-          sub={`${todayData.pod_count} POD · ${todayData.cnx_count} CNX`}
-          icon="🎯"
-          color={podRate >= 90 ? '#22c55e' : podRate >= 70 ? '#f59e0b' : '#ef4444'}
-        />
-      </div>
-
-      {/* Charts Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }} className="charts-row">
-        {/* Line Chart Tren */}
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ marginBottom: 12 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Tren Omzet 7 Hari Terakhir</h3>
-            <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>Gross vs Net (setelah potongan)</p>
+        {/* Card 1: Total Paket */}
+        <div className="card" style={{ padding: '16px 18px', background: '#111827', border: '1px solid #1e2433', borderRadius: 12 }}>
+          <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            📦 Total Paket Bulan Ini
           </div>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={chart7d}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2433" />
-              <XAxis dataKey="tanggal" stroke="#64748b" style={{ fontSize: 11 }} />
-              <YAxis stroke="#64748b" style={{ fontSize: 11 }} tickFormatter={fmt} />
-              <Tooltip
-                contentStyle={{
-                  background: '#0f172a',
-                  border: '1px solid #334155',
-                  borderRadius: 8,
-                  fontSize: 12,
-                  boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
-                }}
-                labelStyle={{ color: '#f1f5f9', fontWeight: 700, marginBottom: 4 }}
-                itemStyle={{ color: '#f8fafc', fontWeight: 600 }}
-                formatter={(v: any, name: any) => [formatCurrency(Number(v) || 0), name]}
-              />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line type="monotone" dataKey="Omzet" stroke="#f97316" strokeWidth={2} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="Net Omzet" stroke="#22c55e" strokeWidth={2} dot={{ r: 4 }} />
-            </LineChart>
-          </ResponsiveContainer>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#38bdf8', marginTop: 4 }}>
+            {stats.totalPaket.toLocaleString('id-ID')} <span style={{ fontSize: 13, fontWeight: 500 }}>Paket</span>
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+            {stats.activeDays} hari operasional aktif
+          </div>
         </div>
 
-        {/* Bar Chart Top 5 Kurir */}
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ marginBottom: 12 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Top 5 Kurir</h3>
-            <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>Berdasarkan omzet {range} hari</p>
+        {/* Card 2: Total Omzet */}
+        <div className="card" style={{ padding: '16px 18px', background: '#111827', border: '1px solid #1e2433', borderRadius: 12 }}>
+          <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            💰 Total Omzet Bruto
           </div>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={topKurir} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2433" />
-              <XAxis type="number" stroke="#64748b" style={{ fontSize: 11 }} tickFormatter={fmt} />
-              <YAxis type="category" dataKey="kode" stroke="#64748b" style={{ fontSize: 11 }} width={50} />
-              <Tooltip
-                contentStyle={{
-                  background: '#0f172a',
-                  border: '1px solid #334155',
-                  borderRadius: 8,
-                  fontSize: 12,
-                  boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
-                }}
-                labelStyle={{ color: '#f1f5f9', fontWeight: 700, marginBottom: 4 }}
-                itemStyle={{ color: '#38bdf8', fontWeight: 600 }}
-                formatter={(v: any) => [formatCurrency(Number(v) || 0), 'Total Omzet']}
-              />
-              <Bar dataKey="total_omzet" radius={[0, 6, 6, 0]}>
-                {topKurir.map((k, i) => (
-                  <Cell key={i} fill={k.warna || '#64748b'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#f97316', marginTop: 4 }}>
+            {formatCurrency(stats.totalOmzet)}
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+            Periode {formatPeriodeIndo(selectedPeriode)}
+          </div>
+        </div>
+
+        {/* Card 3: Rata-rata Harian */}
+        <div className="card" style={{ padding: '16px 18px', background: '#111827', border: '1px solid #1e2433', borderRadius: 12 }}>
+          <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            📊 Rata-Rata per Hari
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#22c55e', marginTop: 4 }}>
+            {stats.avgPaketPerDay} <span style={{ fontSize: 13, fontWeight: 500 }}>Paket/hari</span>
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+            Omzet: {formatCurrencyShort(stats.avgOmzetPerDay)} / hari
+          </div>
+        </div>
+
+        {/* Card 4: Peak Day */}
+        <div className="card" style={{ padding: '16px 18px', background: '#111827', border: '1px solid #f59e0b40', borderRadius: 12 }}>
+          <div style={{ fontSize: 11, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700 }}>
+            🔥 Hari Teramai (Peak Day)
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#f59e0b', marginTop: 4 }}>
+            {stats.peakDay ? stats.peakDay.dateLabel : '-'}
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+            {stats.peakDay
+              ? `${stats.peakDay.total_paket} Paket · ${formatCurrencyShort(stats.peakDay.total_omzet)}`
+              : 'Belum ada transaksi'}
+          </div>
+        </div>
+
+        {/* Card 5: POD Rate */}
+        <div className="card" style={{ padding: '16px 18px', background: '#111827', border: '1px solid #1e2433', borderRadius: 12 }}>
+          <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            🎯 Tingkat POD Sukses
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#a855f7', marginTop: 4 }}>
+            {stats.podRate}%
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+            {stats.totalPod} POD · {stats.totalCnx} Cancel (CNX)
+          </div>
         </div>
       </div>
 
-      {/* Recent Activity */}
-      <div className="card" style={{ padding: 20 }}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Main Chart Section: Tren Harian Tanggal 1 - 31 */}
+      <div className="card" style={{
+        background: '#111827', border: '1px solid #1e2433', borderRadius: 12,
+        padding: '20px 24px', marginBottom: 24,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Aktivitas Terbaru</h3>
-            <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>10 transaksi terakhir {selectedKurir && `· ${selectedKurir}`}</p>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>
+              📈 Tren Omzet & Paket Harian ({formatPeriodeIndo(selectedPeriode)})
+            </h2>
+            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+              Pergerakan transaksi harian tanggal 1 sampai akhir bulan.
+            </p>
           </div>
-          <span style={{
-            fontSize: 11, color: '#94a3b8',
-            padding: '4px 10px', borderRadius: 12,
-            background: '#1e2433',
-          }}>
-            {filteredRecent.length} records
-          </span>
+          {stats.peakDay && (
+            <div style={{
+              background: '#f59e0b20', border: '1px solid #f59e0b50', borderRadius: 6,
+              padding: '4px 10px', fontSize: 12, color: '#f59e0b', fontWeight: 600,
+            }}>
+              ⭐ Puncak: {stats.peakDay.fullLabel}
+            </div>
+          )}
+        </div>
+
+        {dailyData.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#64748b' }}>
+            Tidak ada transaksi tercatat pada periode ini.
+          </div>
+        ) : (
+          <div style={{ height: 320 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={dailyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e2433" vertical={false} />
+                <XAxis
+                  dataKey="dateLabel"
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                />
+                <YAxis
+                  yAxisId="left" width={65} axisLine={false}
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  tickFormatter={(v) => formatCurrencyShort(v)}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  stroke="#38bdf8"
+                  fontSize={11}
+                  tickLine={false}
+                  tickFormatter={(v) => `${v} pkt`}
+                />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload || !payload.length) return null
+                    const data = payload[0].payload
+                    return (
+                      <div style={{
+                        background: '#0d111c', border: '1px solid #2d3748',
+                        borderRadius: 8, padding: '10px 14px', fontSize: 12,
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                      }}>
+                        <div style={{ fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>
+                          {data.fullLabel}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, color: '#f97316' }}>
+                          <span>Total Omzet:</span>
+                          <span style={{ fontWeight: 700 }}>{formatCurrency(data.total_omzet)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, color: '#38bdf8', marginTop: 2 }}>
+                          <span>Total Paket:</span>
+                          <span style={{ fontWeight: 700 }}>{data.total_paket} Paket</span>
+                        </div>
+                        {data.lion_omzet > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, color: '#ea580c', fontSize: 11, marginTop: 4 }}>
+                            <span>Lion Parcel:</span>
+                            <span>{data.lion_paket} pkt ({formatCurrencyShort(data.lion_omzet)})</span>
+                          </div>
+                        )}
+                        {data.jne_omzet > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, color: '#ef4444', fontSize: 11, marginTop: 2 }}>
+                            <span>JNE Express:</span>
+                            <span>{data.jne_paket} pkt ({formatCurrencyShort(data.jne_omzet)})</span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }}
+                />
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  wrapperStyle={{ paddingBottom: 10, fontSize: 12 }}
+                />
+                <Bar
+                  yAxisId="right"
+                  dataKey="total_paket"
+                  name="Jumlah Paket"
+                  fill="#38bdf8"
+                  opacity={0.35}
+                  radius={[4, 4, 0, 0]}
+                  barSize={16}
+                />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="total_omzet"
+                  name="Total Omzet"
+                  stroke="#f97316"
+                  strokeWidth={2.5}
+                  dot={{ r: 3, fill: '#f97316' }}
+                  activeDot={{ r: 5 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* Day of Week Insights (Pola Mingguan) */}
+      <div className="card" style={{
+        background: '#111827', border: '1px solid #1e2433', borderRadius: 12,
+        padding: '20px 24px', marginBottom: 24,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div>
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>
+              🗓️ Pola Distribusi Hari dalam Seminggu
+            </h2>
+            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+              Akumulasi paket & omzet berdasarkan hari (Senin – Minggu) di bulan {formatPeriodeIndo(selectedPeriode)}.
+            </p>
+          </div>
+          {dayOfWeekDistribution.busiestDay && (
+            <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 700 }}>
+              🔥 Hari Paling Ramai: {dayOfWeekDistribution.busiestDay.name.toUpperCase()} ({dayOfWeekDistribution.busiestDay.paket} Paket)
+            </div>
+          )}
+        </div>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+          gap: 10,
+        }}>
+          {dayOfWeekDistribution.list.map(d => {
+            const isBusiest = dayOfWeekDistribution.busiestDay?.name === d.name
+            const pct = (d.paket / dayOfWeekDistribution.maxPaket) * 100
+            return (
+              <div
+                key={d.name}
+                style={{
+                  background: isBusiest ? '#f9731615' : '#0d111c',
+                  border: isBusiest ? '1.5px solid #f97316' : '1px solid #1e2433',
+                  borderRadius: 10, padding: '12px 14px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: isBusiest ? '#f97316' : '#f1f5f9' }}>
+                    {d.name}
+                  </span>
+                  {isBusiest && <span style={{ fontSize: 12 }}>🔥</span>}
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: isBusiest ? '#f97316' : '#38bdf8' }}>
+                  {d.paket} <span style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8' }}>pkt</span>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  {formatCurrencyShort(d.omzet)}
+                </div>
+                {/* Visual bar */}
+                <div style={{ background: '#1e2433', height: 4, borderRadius: 2, marginTop: 8, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${pct}%`, height: '100%',
+                    background: isBusiest ? '#f97316' : '#38bdf8',
+                  }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Daily Records Table */}
+      <div className="card" style={{
+        background: '#111827', border: '1px solid #1e2433', borderRadius: 12,
+        overflow: 'hidden',
+      }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e2433' }}>
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>
+            📋 Rincian Transaksi Harian ({dailyData.length} Hari Operasional)
+          </h2>
         </div>
 
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #1e2433' }}>
-                <th style={thStyle}>Tanggal</th>
-                <th style={thStyle}>Nomor STT</th>
-                <th style={thStyle}>Kurir</th>
-                <th style={thStyle}>Tujuan</th>
-                <th style={thStyle}>Jenis</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>Biaya</th>
-                <th style={thStyle}>Status</th>
+              <tr style={{ background: '#0d111c', color: '#94a3b8', textAlign: 'left' }}>
+                <th style={{ padding: '10px 16px', borderBottom: '1px solid #1e2433' }}>Tanggal</th>
+                <th style={{ padding: '10px 16px', borderBottom: '1px solid #1e2433' }}>Hari</th>
+                <th style={{ padding: '10px 16px', borderBottom: '1px solid #1e2433', textAlign: 'center' }}>Lion (Pkt)</th>
+                <th style={{ padding: '10px 16px', borderBottom: '1px solid #1e2433', textAlign: 'center' }}>JNE (Pkt)</th>
+                <th style={{ padding: '10px 16px', borderBottom: '1px solid #1e2433', textAlign: 'center' }}>Total Paket</th>
+                <th style={{ padding: '10px 16px', borderBottom: '1px solid #1e2433', textAlign: 'right' }}>Omzet Lion</th>
+                <th style={{ padding: '10px 16px', borderBottom: '1px solid #1e2433', textAlign: 'right' }}>Omzet JNE</th>
+                <th style={{ padding: '10px 16px', borderBottom: '1px solid #1e2433', textAlign: 'right' }}>Total Omzet</th>
+                <th style={{ padding: '10px 16px', borderBottom: '1px solid #1e2433', textAlign: 'right' }}>Komisi Agen</th>
+                <th style={{ padding: '10px 16px', borderBottom: '1px solid #1e2433', textAlign: 'center' }}>Status</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRecent.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', color: '#475569' }}>
-                    Belum ada transaksi
-                  </td>
-                </tr>
-              ) : (
-                filteredRecent.map(tx => (
-                  <tr key={tx.id} style={{ borderBottom: '1px solid #1e2433' }}>
-                    <td style={tdStyle}>
-                      {typeof tx.tanggal === 'string'
-                        ? tx.tanggal
-                        : (tx.tanggal as any) instanceof Date
-                        ? (tx.tanggal as any).toISOString().slice(0, 10)
-                        : String(tx.tanggal ?? '')}
-                    </td>
-                    <td style={{ ...tdStyle, fontFamily: 'monospace', color: '#f97316' }}>{tx.nomor_stt}</td>
-                    <td style={tdStyle}>
-                      {tx.kurir ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{
-                            width: 8, height: 8, borderRadius: '50%',
-                            background: tx.kurir.warna || '#64748b',
-                          }} />
-                          {tx.kurir.kode}
+              {dailyData.map((row) => {
+                const isPeak = stats.peakDay?.tanggal === row.tanggal
+                return (
+                  <tr
+                    key={row.tanggal}
+                    style={{
+                      borderBottom: '1px solid #1e2433',
+                      background: isPeak ? '#f59e0b10' : 'transparent',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = isPeak ? '#f59e0b20' : '#1e243330')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = isPeak ? '#f59e0b10' : 'transparent')}
+                  >
+                    <td style={{ padding: '10px 16px', fontWeight: 600, color: isPeak ? '#f59e0b' : '#f1f5f9' }}>
+                      {row.tanggal}
+                      {isPeak && (
+                        <span style={{
+                          marginLeft: 6, fontSize: 10, background: '#f59e0b', color: '#000',
+                          padding: '1px 5px', borderRadius: 4, fontWeight: 700,
+                        }}>
+                          PEAK
                         </span>
-                      ) : '-'}
+                      )}
                     </td>
-                    <td style={tdStyle}>{tx.kota_tujuan || '-'}</td>
-                    <td style={tdStyle}>
+                    <td style={{ padding: '10px 16px', color: '#94a3b8' }}>
+                      {row.dayName}
+                    </td>
+                    <td style={{ padding: '10px 16px', textAlign: 'center', color: '#ea580c', fontWeight: 600 }}>
+                      {row.lion_paket > 0 ? row.lion_paket : '-'}
+                    </td>
+                    <td style={{ padding: '10px 16px', textAlign: 'center', color: '#ef4444', fontWeight: 600 }}>
+                      {row.jne_paket > 0 ? row.jne_paket : '-'}
+                    </td>
+                    <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 700, color: '#38bdf8' }}>
+                      {row.total_paket}
+                    </td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#94a3b8' }}>
+                      {row.lion_omzet > 0 ? formatCurrency(row.lion_omzet) : '-'}
+                    </td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', color: '#94a3b8' }}>
+                      {row.jne_omzet > 0 ? formatCurrency(row.jne_omzet) : '-'}
+                    </td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: '#f97316' }}>
+                      {formatCurrency(row.total_omzet)}
+                    </td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 600, color: '#22c55e' }}>
+                      {formatCurrency(row.total_diskon)}
+                    </td>
+                    <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                       <span style={{
-                        fontSize: 10, fontWeight: 600,
-                        padding: '2px 6px', borderRadius: 4,
-                        background: tx.jenis_kiriman === 'COD' ? '#ef444420' : '#3b82f620',
-                        color: tx.jenis_kiriman === 'COD' ? '#ef4444' : '#3b82f6',
-                      }}>{tx.jenis_kiriman}</span>
+                        fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                        background: '#22c55e20', color: '#22c55e', border: '1px solid #22c55e40',
+                      }}>
+                        {row.cnx_count > 0 ? `${row.pod_count} POD / ${row.cnx_count} CNX` : 'LUNAS / POD'}
+                      </span>
                     </td>
-                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{formatCurrencyShort(tx.total_biaya)}</td>
-                    <td style={tdStyle}><StatusBadge status={tx.status} /></td>
                   </tr>
-                ))
-              )}
+                )
+              })}
             </tbody>
           </table>
         </div>
       </div>
-
-      {/* CSS for responsive grid */}
-      <style jsx>{`
-        .charts-row {
-          @media (max-width: 768px) {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
     </div>
   )
-}
-
-const thStyle: React.CSSProperties = {
-  padding: '10px 12px', textAlign: 'left', color: '#64748b',
-  fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px',
-}
-
-const tdStyle: React.CSSProperties = {
-  padding: '12px', color: '#cbd5e1', verticalAlign: 'middle',
 }

@@ -1,59 +1,66 @@
 import { query } from '@/lib/db'
 import HarianClient from '@/components/dashboard/HarianClient'
 
-export default async function HarianPage() {
-  const today = new Date()
-  const since = new Date(today)
-  since.setDate(today.getDate() - 30)
+export default async function HarianPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ periode?: string; kurir?: string }>
+}) {
+  const params = await searchParams
 
-  const sinceStr = since.toISOString().slice(0, 10)
-  const todayStr = today.toISOString().slice(0, 10)
+  // 1. Ambil daftar periode bulan yang tersedia di database
+  let availablePeriods: string[] = []
+  try {
+    const pRes = await query(`
+      SELECT DISTINCT to_char(tanggal, 'YYYY-MM') as periode
+      FROM v_summary_harian
+      ORDER BY periode DESC
+    `)
+    availablePeriods = pRes.rows.map((r: any) => r.periode)
+  } catch (e) {
+    console.error('Error fetching available periods for harian:', e)
+  }
 
-  const since7 = new Date(today)
-  since7.setDate(today.getDate() - 7)
-  const since7Str = since7.toISOString().slice(0, 10)
+  if (availablePeriods.length === 0) {
+    availablePeriods = ['2026-08']
+  }
 
+  // Default ke periode bulan terbaru yang ada datanya di database
+  const selectedPeriode = params.periode && availablePeriods.includes(params.periode)
+    ? params.periode
+    : availablePeriods[0]
+
+  // 2. Query summary harian untuk periode terpilih (menggabungkan Lion Parcel & JNE)
   let summary: any[] = []
-  let summary7d: any[] = []
-  let recentTx: any[] = []
   let kurirList: any[] = []
 
   try {
-    const results = await Promise.allSettled([
-      query(
-        'SELECT * FROM v_summary_harian WHERE tanggal >= $1 ORDER BY tanggal DESC',
-        [sinceStr]
-      ),
+    const [summaryRes, kurirRes] = await Promise.all([
       query(`
-        SELECT t.id, t.nomor_stt, to_char(t.tanggal, 'YYYY-MM-DD') as tanggal, t.kota_tujuan, t.total_biaya, t.status, t.jenis_kiriman,
-          json_build_object('kode', k.kode, 'nama', k.nama, 'warna', k.warna) as kurir
-        FROM transaksi t
-        LEFT JOIN kurir k ON k.id = t.kurir_id
-        ORDER BY t.tanggal DESC
-        LIMIT 10
-      `),
+        SELECT 
+          outlet,
+          kurir_kode,
+          kurir_nama,
+          kurir_warna,
+          to_char(tanggal, 'YYYY-MM-DD') as tanggal,
+          total_paket,
+          total_koli,
+          total_omzet,
+          total_diskon,
+          net_omzet,
+          pod_count,
+          cnx_count,
+          cod_count,
+          noncod_count
+        FROM v_summary_harian
+        WHERE to_char(tanggal, 'YYYY-MM') = $1
+        ORDER BY tanggal ASC
+      `, [selectedPeriode]),
       query('SELECT kode, nama, warna FROM kurir WHERE aktif IS NOT FALSE ORDER BY kode ASC')
     ])
 
-    if (results[0].status === 'fulfilled') {
-      summary = results[0].value.rows
-      // since7Str (7 hari) adalah subset dari sinceStr (30 hari), filter langsung dari memori tanpa roundtrip tambahan ke Neon
-      summary7d = summary.filter((r: any) => String(r.tanggal || '').slice(0, 10) >= since7Str)
-    } else {
-      console.error('Error fetching v_summary_harian:', results[0].reason)
-    }
-
-    if (results[1].status === 'fulfilled') {
-      recentTx = results[1].value.rows
-    } else {
-      console.error('Error fetching recentTx harian:', results[1].reason)
-    }
-
-    if (results[2].status === 'fulfilled') {
-      kurirList = results[2].value.rows
-    } else {
-      console.error('Error fetching kurirList harian:', results[2].reason)
-    }
+    summary = summaryRes.rows
+    kurirList = kurirRes.rows
   } catch (e) {
     console.error('Error fetching harian page data:', e)
   }
@@ -65,24 +72,13 @@ export default async function HarianPage() {
     ]
   }
 
-  const sanitizeDate = (val: any): string => {
-    if (!val) return ''
-    if (typeof val === 'string') return val.slice(0, 10)
-    if (val instanceof Date) return val.toISOString().slice(0, 10)
-    return String(val).slice(0, 10)
-  }
-
-  const safeSummary = summary.map(r => ({ ...r, tanggal: sanitizeDate(r.tanggal) }))
-  const safeSummary7d = summary7d.map(r => ({ ...r, tanggal: sanitizeDate(r.tanggal) }))
-  const safeRecentTx = recentTx.map(r => ({ ...r, tanggal: sanitizeDate(r.tanggal) }))
-
   return (
     <HarianClient
-      summary={safeSummary}
-      summary7d={safeSummary7d}
-      recentTx={safeRecentTx}
+      summary={summary}
       kurirList={kurirList}
-      todayStr={todayStr}
+      selectedPeriode={selectedPeriode}
+      availablePeriods={availablePeriods}
+      initialKurir={params.kurir || ''}
     />
   )
 }
