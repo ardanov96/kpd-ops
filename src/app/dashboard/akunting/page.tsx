@@ -36,8 +36,8 @@ export default async function AkuntingPage() {
 
   try {
     const lrRes = await query(
-      'SELECT periode, total_income, total_expense, laba_kotor FROM v_laba_rugi WHERE outlet_id = $1 AND periode = ANY($2) ORDER BY periode ASC',
-      [outlet.id, periodes]
+      'SELECT periode, total_income, total_expense, laba_kotor FROM v_laba_rugi WHERE outlet_id = $1 ORDER BY periode ASC',
+      [outlet.id]
     )
     labaRugiHistory = lrRes.rows
 
