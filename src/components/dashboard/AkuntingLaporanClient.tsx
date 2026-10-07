@@ -140,8 +140,10 @@ export default function AkuntingLaporanClient({
         })),
         neraca: neraca
           ? {
+              total_aset: neraca.total_aset,
               total_aset_kas: neraca.total_aset_kas,
               total_modal_pemilik: neraca.total_modal_pemilik,
+              total_laba_ditahan: neraca.total_laba_ditahan,
               total_equity: neraca.total_equity,
               selisih: neraca.selisih,
             }

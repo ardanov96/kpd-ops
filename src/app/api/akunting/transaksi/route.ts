@@ -3,21 +3,71 @@ import { query } from '@/lib/db'
 import { requireOwner, requireAuth, isAuthError } from '@/lib/api/auth'
 import { apiBadRequest, apiError, apiOk } from '@/lib/api/response'
 import { TRANSAKSI_TIPE, METODE_PEMBAYARAN } from '@/types'
+import { uploadNota, validateFile, deleteFile, BUCKET_NOTA } from '@/lib/storage'
+import { getCurrentPeriodeWIB } from '@/lib/timezone'
+import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   const guard = await requireOwner(req)
   if (isAuthError(guard)) return guard
   const { profile } = guard
 
-  let body: any
-  try {
-    body = await req.json()
-  } catch {
-    return apiBadRequest('Body harus JSON')
+  const contentType = req.headers.get('content-type') || ''
+  let outlet_id = ''
+  let tanggal = ''
+  let tipe: any = ''
+  let kategori_id = ''
+  let nominal: any = 0
+  let metode: any = null
+  let keterangan: any = null
+  let lampiran_url: string | null = null
+  let file: File | null = null
+
+  if (contentType.includes('multipart/form-data')) {
+    let formData: FormData
+    try {
+      formData = await req.formData()
+    } catch {
+      return apiBadRequest('Body multipart form data tidak valid')
+    }
+    outlet_id = (formData.get('outlet_id') as string) || ''
+    tanggal = (formData.get('tanggal') as string) || ''
+    tipe = (formData.get('tipe') as string) || ''
+    kategori_id = (formData.get('kategori_id') as string) || ''
+    nominal = formData.get('nominal')
+    metode = (formData.get('metode') as string) || null
+    keterangan = (formData.get('keterangan') as string) || null
+    lampiran_url = (formData.get('lampiran_url') as string) || null
+    const f = formData.get('file')
+    if (f && typeof f === 'object' && 'size' in f && (f as File).size > 0) {
+      file = f as File
+    }
+  } else {
+    let body: any
+    try {
+      body = await req.json()
+    } catch {
+      return apiBadRequest('Body harus JSON atau multipart/form-data')
+    }
+    outlet_id = body.outlet_id
+    tanggal = body.tanggal
+    tipe = body.tipe
+    kategori_id = body.kategori_id
+    nominal = body.nominal
+    metode = body.metode || null
+    keterangan = body.keterangan || null
+    lampiran_url = body.lampiran_url || null
   }
-  const { outlet_id, tanggal, tipe, kategori_id, nominal, metode, keterangan } = body
+
+  if (metode && typeof metode === 'string') {
+    metode = metode.trim() || null
+  }
+  if (keterangan && typeof keterangan === 'string') {
+    keterangan = keterangan.trim() || null
+  }
 
   if (!outlet_id) return apiBadRequest('outlet_id wajib diisi')
   if (!tanggal) return apiBadRequest('tanggal wajib diisi')
@@ -66,14 +116,57 @@ export async function POST(req: NextRequest) {
       return apiBadRequest(`Kategori ${kat.tipe} tidak cocok dengan tipe transaksi ${tipe}`)
     }
 
-    const res = await query(
-      `INSERT INTO transaksi_keuangan (outlet_id, tanggal, tipe, kategori_id, sumber, nominal, metode, keterangan, created_by)
-       VALUES ($1, $2, $3, $4, 'MANUAL', $5, $6, $7, $8)
-       RETURNING *`,
-      [outlet_id, tanggal, tipe, kategori_id, n, metode || null, keterangan || null, profile.id]
-    )
+    const trxId = crypto.randomUUID()
+    let uploadedFilePath: string | null = null
 
-    return apiOk(res.rows[0], 201)
+    // Upload nota jika dilampirkan (Atomic: jika gagal upload, batalkan sebelum insert DB)
+    if (file) {
+      const valErr = validateFile(file)
+      if (valErr) {
+        const status = valErr.code === 'FILE_TOO_LARGE' ? 413 : 400
+        return NextResponse.json({ error: valErr.error, code: valErr.code }, { status })
+      }
+
+      const subfolder = (tanggal || '').slice(0, 7) || getCurrentPeriodeWIB()
+      const upRes = await uploadNota({
+        outletId: outlet_id,
+        refId: trxId,
+        subfolder,
+        file,
+      })
+
+      if (upRes.error || !upRes.data) {
+        const status = upRes.error?.code === 'FILE_TOO_LARGE' ? 413 : 400
+        return NextResponse.json(
+          { error: upRes.error?.error || 'Upload nota gagal', code: upRes.error?.code || 'UPLOAD_FAILED' },
+          { status }
+        )
+      }
+
+      uploadedFilePath = upRes.data.path
+      lampiran_url = uploadedFilePath
+    }
+
+    try {
+      const res = await query(
+        `INSERT INTO transaksi_keuangan (id, outlet_id, tanggal, tipe, kategori_id, sumber, nominal, metode, keterangan, lampiran_url, created_by)
+         VALUES ($1, $2, $3, $4, $5, 'MANUAL', $6, $7, $8, $9, $10)
+         RETURNING *`,
+        [trxId, outlet_id, tanggal, tipe, kategori_id, n, metode || null, keterangan || null, lampiran_url || null, profile.id]
+      )
+
+      return apiOk(res.rows[0], 201)
+    } catch (insertError: any) {
+      // Rollback file upload jika insert DB gagal agar tidak meninggalkan orphan file
+      if (uploadedFilePath) {
+        try {
+          await deleteFile(BUCKET_NOTA, uploadedFilePath)
+        } catch (delErr) {
+          console.warn('[POST transaksi] Gagal rollback nota expense:', delErr)
+        }
+      }
+      throw insertError
+    }
   } catch (error: any) {
     return apiError(error, 500, '[POST transaksi]', 'Gagal menyimpan transaksi')
   }

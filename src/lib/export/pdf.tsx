@@ -374,8 +374,10 @@ export interface PdfFinancialReportData {
     cashflow: number | string
   }>
   neraca?: {
+    total_aset?: number | string
     total_aset_kas?: number | string
     total_modal_pemilik?: number | string
+    total_laba_ditahan?: number | string
     total_equity?: number | string
     selisih?: number | string
   } | null
@@ -653,17 +655,37 @@ function FinancialReportView({ data }: { data: PdfFinancialReportData }) {
             ) : (
               <>
                 <View style={styles.miniRow}>
-                  <Text style={styles.miniLabel}>Total Aset Kas & Bank</Text>
+                  <Text style={styles.miniLabel}>Kas & Bank</Text>
                   <Text style={styles.miniValue}>{formatIDR(data.neraca.total_aset_kas)}</Text>
                 </View>
-                <View style={styles.miniRow}>
-                  <Text style={styles.miniLabel}>Modal Awal Pemilik</Text>
+                <View style={[styles.miniRow, { borderTopWidth: 0.5, borderTopColor: colors.borderLight, paddingTop: 3, marginTop: 2 }]}>
+                  <Text style={[styles.miniLabel, { fontFamily: 'Helvetica-Bold', color: colors.primary }]}>Total Aset</Text>
+                  <Text style={[styles.miniValue, { fontFamily: 'Helvetica-Bold', color: colors.primary }]}>
+                    {formatIDR(data.neraca.total_aset ?? data.neraca.total_aset_kas)}
+                  </Text>
+                </View>
+                <View style={[styles.miniRow, { marginTop: 4 }]}>
+                  <Text style={styles.miniLabel}>Modal Pemilik</Text>
                   <Text style={styles.miniValue}>{formatIDR(data.neraca.total_modal_pemilik)}</Text>
                 </View>
-                <View style={[styles.miniRow, { borderTopWidth: 0.5, borderTopColor: colors.borderLight, paddingTop: 3, marginTop: 2 }]}>
-                  <Text style={[styles.miniLabel, { fontFamily: 'Helvetica-Bold', color: colors.text }]}>Total Ekuitas</Text>
-                  <Text style={styles.miniValue}>{formatIDR(data.neraca.total_equity)}</Text>
+                <View style={styles.miniRow}>
+                  <Text style={styles.miniLabel}>Laba Ditahan</Text>
+                  <Text style={styles.miniValue}>{formatIDR(data.neraca.total_laba_ditahan ?? 0)}</Text>
                 </View>
+                <View style={[styles.miniRow, { borderTopWidth: 0.5, borderTopColor: colors.borderLight, paddingTop: 3, marginTop: 2 }]}>
+                  <Text style={[styles.miniLabel, { fontFamily: 'Helvetica-Bold', color: colors.primary }]}>Total Ekuitas</Text>
+                  <Text style={[styles.miniValue, { fontFamily: 'Helvetica-Bold', color: colors.primary }]}>
+                    {formatIDR(data.neraca.total_equity)}
+                  </Text>
+                </View>
+                {Math.abs(Number(data.neraca.selisih || 0)) > 1 && (
+                  <View style={[styles.miniRow, { marginTop: 2 }]}>
+                    <Text style={[styles.miniLabel, { color: colors.red, fontStyle: 'italic' }]}>Selisih (Aset - Ekuitas)</Text>
+                    <Text style={[styles.miniValue, { color: colors.red, fontFamily: 'Helvetica-Bold' }]}>
+                      {formatIDR(data.neraca.selisih)}
+                    </Text>
+                  </View>
+                )}
               </>
             )}
           </View>

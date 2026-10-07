@@ -162,7 +162,7 @@ export default function AkuntingExpenseForm({
   }
 
   // ============================================================
-  // SUBMIT (2 langkah: insert transaksi → upload nota → update URL)
+  // SUBMIT (Atomic 1 request: simpan transaksi + upload nota langsung)
   // ============================================================
 
   async function submit() {
@@ -179,58 +179,40 @@ export default function AkuntingExpenseForm({
     }
 
     setBusy(true)
-    setUploadProgress(0)
+    if (lampiranFile) {
+      setUploadBusy(true)
+      setUploadProgress(30)
+    }
     try {
-      // Step 1: insert transaksi
-      const res = await fetch('/api/akunting/transaksi', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          outlet_id: outlet.id,
-          tanggal: form.tanggal,
-          tipe: form.tipe,
-          kategori_id: form.kategori_id,
-          nominal: Number(form.nominal),
-          metode: form.metode,
-          keterangan: form.keterangan.trim() || null,
-        }),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Gagal simpan transaksi')
-      const transaksiId = json?.id
-      if (!transaksiId) throw new Error('Response API tidak mengandung ID transaksi')
-
-      // Step 2: upload nota (jika ada) — lalu PATCH ke transaksi_keuangan.lampiran_url
-      let uploadedPath: string | null = null
+      const fd = new FormData()
+      fd.append('outlet_id', outlet.id)
+      fd.append('tanggal', form.tanggal)
+      fd.append('tipe', form.tipe)
+      fd.append('kategori_id', form.kategori_id)
+      fd.append('nominal', String(Number(form.nominal)))
+      if (form.metode) fd.append('metode', form.metode)
+      if (form.keterangan.trim()) fd.append('keterangan', form.keterangan.trim())
       if (lampiranFile) {
-        setUploadBusy(true)
-        setUploadProgress(20)
-        const fd = new FormData()
         fd.append('file', lampiranFile)
-        fd.append('outletId', outlet.id)
-        fd.append('refId', transaksiId)
-        fd.append('subfolder', form.tanggal.slice(0, 7)) // YYYY-MM
-        const upRes = await fetch('/api/storage/upload-nota', {
-          method: 'POST',
-          body: fd,
-        })
-        setUploadProgress(80)
-        const upJson = await upRes.json()
-        if (!upRes.ok) throw new Error(upJson.error || 'Upload nota gagal')
-        uploadedPath = upJson.path
-
-        // Step 3: PATCH URL ke transaksi
-        const patchRes = await fetch(`/api/akunting/transaksi/${transaksiId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lampiran_url: uploadedPath }),
-        })
-        setUploadProgress(100)
-        if (!patchRes.ok) throw new Error('Gagal simpan URL lampiran')
       }
 
+      if (lampiranFile) setUploadProgress(60)
+
+      const res = await fetch('/api/akunting/transaksi', {
+        method: 'POST',
+        body: fd,
+      })
+
+      if (lampiranFile) setUploadProgress(90)
+
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Gagal simpan transaksi')
+
+      if (lampiranFile) setUploadProgress(100)
+
+      const hasLampiran = Boolean(json?.lampiran_url)
       showToast(
-        `✅ Transaksi ${form.tipe} tersimpan${uploadedPath ? ' + nota terupload' : ''}`
+        `✅ Transaksi ${form.tipe} tersimpan${hasLampiran ? ' + nota terupload' : ''}`
       )
       setForm({ ...form, nominal: 0, keterangan: '', kategori_id: '' })
       clearFile()

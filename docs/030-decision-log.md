@@ -402,6 +402,69 @@
 - Type-safe: `(typeof PAJAK_STATUS)[number]` otomatis derived
 - Mudah add new value (cuma tambah di 1 tempat)
 
+### D-035: Peniadaan Beban Sewa (5500) dan Beban Listrik (5300)
+**Tanggal:** 7 Oktober 2026
+**Konteks:** Audit kelengkapan beban operasional modul akunting menemukan akun 5300 (Beban Listrik) dan 5500 (Beban Sewa) bernilai Rp 0 sejak 2023.
+**Keputusan:** Akun 5300 dan 5500 sengaja dibiarkan Rp 0 (tidak ada transaksi yang diinput).
+**Alasan:**
+- Bangunan outlet merupakan properti milik sendiri sehingga tidak ada pengeluaran sewa ruko/outlet (Beban Sewa = Rp 0).
+- Beban listrik operasional outlet ditanggung sepenuhnya oleh bibi owner yang memiliki ruko di sebelah outlet (Beban Listrik = Rp 0).
+- Dengan konfirmasi ini, seluruh beban operasional (expense) di database telah diverifikasi 100% lengkap dan mencerminkan kondisi riil bisnis.
+
+### D-036: Atomic Insert + Upload Nota & Konsistensi Neraca di PDF Export (P-005)
+**Tanggal:** 7 Oktober 2026
+**Konteks:** 
+- Sebelumnya, form manual expense di `AkuntingExpenseForm` menjalankan 3 HTTP request terpisah secara berurutan (POST insert transaksi -> POST upload nota -> PATCH lampiran_url). Jika upload atau patch gagal, data transaksi sudah terlanjur tersimpan di DB tanpa lampiran atau terjadi orphan record.
+- Pada export PDF Laporan Keuangan, komponen Neraca belum menyajikan pos Laba Ditahan (*Retained Earnings*) dan Total Aset, sehingga nilai total ekuitas tidak seimbang secara visual dengan modal awal pemilik.
+**Keputusan:**
+1. Endpoint `POST /api/akunting/transaksi` ditingkatkan agar mendukung `multipart/form-data` di samping JSON biasa. Validasi file, upload storage ke bucket `nota-expense`, dan `INSERT` database dijalankan secara atomik dalam 1 siklus request server-side. Jika insert DB gagal, file storage otomatis di-rollback (dihapus) sehingga tidak meninggalkan file yatim (*orphan file*).
+2. `AkuntingExpenseForm` disederhanakan menjadi 1 kali submit request `FormData`.
+3. Komponen `PdfReportTemplate` (`src/lib/export/pdf.tsx`) dan `AkuntingLaporanClient.tsx` disinkronkan dengan menyertakan `total_aset`, `total_laba_ditahan`, dan penanganan selisih pada snapshot Neraca agar 100% konsisten dengan UI dan format XLSX.
+**Alasan:**
+- Transaksional & atomik: mencegah inkonsistensi data antara database dan file storage.
+- Efisiensi latensi: mengurangi roundtrip jaringan dari 3x menjadi 1x.
+### D-037: Pencatatan Beban Recurring Tahunan Servis Motor & Ganti Oli
+**Tanggal:** 7 Oktober 2026
+**Konteks:** Biaya perawatan kendaraan operasional (servis motor + ganti oli) belum pernah tercatat sebelumnya di database.
+**Keputusan:**
+- Dicatat sebagai pengeluaran berulang (*recurring*) tahunan senilai Rp 60.000 / tahun dengan metode pembayaran CASH.
+- Periode acuan: setiap tanggal 10 Januari (mengikuti awal tahun operasional penuh ekspedisi), yaitu:
+  - 10 Januari 2024: Rp 60.000
+  - 10 Januari 2025: Rp 60.000
+  - 10 Januari 2026: Rp 60.000
+- Diklasifikasikan ke Chart of Accounts (CoA) **5600 (Beban Transportasi & Bensin)** disatukan dengan akun operasional kendaraan motor outlet.
+- Template recurring aktif ditambahkan di `recurring_transactions` (`interval_bulan = 12`, `tanggal_setiap_bulan = 10`, `last_run = 2026-01-10`) melalui migrasi `048_add_servis_motor_tahunan_recurring_expense.sql`.
+**Alasan:**
+- Menjamin kelengkapan beban operasional kendaraan motor yang digunakan kurir outlet tanpa terlewat setiap tahunnya.
+
+### D-038: Koreksi Ambang Batas Stok Minimum (v_stok_aktual) & Sisa Stok Bubble Wrap
+**Tanggal:** 7 Oktober 2026
+**Konteks:** 
+- Pada halaman Inventaris, muncul notice darurat merah *"7 barang di bawah stok minimum"* dan badge merah di sidebar.
+- Padahal ke-7 barang tersebut adalah barang habis pakai operasional (Metode A) yang dibeli secara berkala melalui recurring per 1 unit/dus/pack dan stok fisiknya memang normal di angka 1.
+- Penyebabnya: view `v_stok_aktual` menggunakan rumus `stok <= stok_min`. Saat stok = 1 dan stok_min = 1, kondisi $1 \le 1$ bernilai TRUE (false alarm).
+- Selain itu, Bubble Wrap Roll #9 (pembelian 10 September 2026) tercatat IN dan langsung OUT pada hari yang sama pada migrasi awal, sehingga sisa stoknya menjadi 0 padahal roll tersebut masih aktif digunakan.
+**Keputusan:**
+1. Mengoreksi formula `is_below_min` pada view `v_stok_aktual` menjadi `stok < b.stok_min` (hanya bernilai true jika stok secara tegas di bawah minimum, yaitu 0).
+2. Mengoreksi stok Bubble Wrap Roll #9 dengan menghapus pencatatan OUT prematur dan mengarahkan referensi transaksi keuangan ke movement IN (pembelian roll). Sisa stok Bubble Wrap kini menjadi 1 roll (sedang aktif dipakai di outlet).
+3. Diaplikasikan melalui migrasi `049_fix_v_stok_aktual_below_min_and_bubble_wrap.sql`.
+**Hasil:**
+- Total barang di bawah minimum menjadi **0**.
+- Seluruh 7 barang kini berstatus **✓ Aman** (badge hijau).
+- Banner notice merah dan badge alert angka 7 di sidebar bersih/hilang.
+
+### D-039: Ralat Pembelian Power Supply Kedua (Uang Pribadi Owner)
+**Tanggal:** 7 Oktober 2026
+**Konteks:** 
+- Transaksi pembelian power supply kedua pada 11 November 2025 senilai Rp 678.000 sebelumnya tercatat sebagai beban operasional outlet (Akun 5400) via Kas/Bank outlet.
+- Owner mengklarifikasi bahwa pengeluaran tersebut murni menggunakan uang pribadi dan sama sekali tidak menggunakan kas/bank outlet.
+**Keputusan:**
+- Transaksi Rp 678.000 pada 11 November 2025 dihapus sepenuhnya dari pembukuan `transaksi_keuangan` outlet melalui migrasi `050_remove_powersupply_kedua_expense.sql`.
+- Transaksi power supply pertama (14 September 2025 senilai Rp 700.000) tetap dipertahankan sebagai beban outlet yang sah.
+**Dampak:**
+- Laba bersih periode November 2025 tidak terbebani pengeluaran Rp 678.000.
+- Saldo Kas/Bank outlet tidak berkurang.
+
 ---
 
 ## ❓ Keputusan yang Masih Pending
@@ -412,7 +475,7 @@
 | P-002 | Modal awal outlet (uang yang ditanam di awal) | ⏳ Pending | Tambah field di `kategori_akun` atau input manual |
 | P-003 | Backup/restore database | ✅ DONE (D-028, Sprint 6) | Backup ke S3 sudah jalan via Vercel Cron |
 | P-004 | Multi-currency (untuk STT internasional?) | ⏳ Not needed | LION/JNE/J&T/WAHANA semua IDR |
-| P-005 | AkuntingExpenseForm atomic insert+upload | ⏳ Sprint 7+ | Pakai RPC atau endpoint baru untuk 1 transaksi |
+| P-005 | AkuntingExpenseForm atomic insert+upload | ✅ DONE (D-036) | Endpoint POST /api/akunting/transaksi mendukung FormData multipart atomic |
 | P-006 | Search STT di halaman transaksi | ⏳ Sprint 7+ | Quick win: tambah filter di GET transaksi |
 
 ---
