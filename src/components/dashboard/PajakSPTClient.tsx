@@ -1,10 +1,11 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import EmptyState from './EmptyState'
 import { useToast } from './Toast'
+import TablePagination from './TablePagination'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(Number(n || 0)).toLocaleString('id-ID') + ',-'
@@ -18,8 +19,17 @@ function fmtPeriode(p: string): string {
 function formatNPWP(raw: string | null | undefined): string {
   if (!raw) return ''
   const c = String(raw).replace(/\D/g, '')
-  if (c.length !== 15) return raw
-  return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}.${c.slice(8, 9)}-${c.slice(9, 12)}.${c.slice(12, 15)}`
+  if (c.length === 15) {
+    return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}.${c.slice(8, 9)}-${c.slice(9, 12)}.${c.slice(12, 15)}`
+  }
+  if (c.length === 16) {
+    if (c.startsWith('0')) {
+      const p = c.slice(1)
+      return `${c} (${p.slice(0, 2)}.${p.slice(2, 5)}.${p.slice(5, 8)}.${p.slice(8, 9)}-${p.slice(9, 12)}.${p.slice(12, 15)})`
+    }
+    return c
+  }
+  return raw
 }
 
 type Rekap = {
@@ -58,9 +68,12 @@ export default function PajakSPTClient({
   tahunList: string[]
 }) {
   const router = useRouter()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(6)
   const { showToast } = useToast()
 
   function pickTahun(t: string) {
+    setPage(1)
     router.push(`/dashboard/pajak/spt?tahun=${t}`)
   }
 
@@ -69,6 +82,13 @@ export default function PajakSPTClient({
   const totalPPh = Number(sptSelected?.total_pph_final || 0)
   const bulanLunas = Number(sptSelected?.bulan_lunas || 0)
   const totalBulan = Number(sptSelected?.total_bulan || 0)
+
+  const totalPages = Math.max(1, Math.ceil(rekapTahunan.length / pageSize))
+  const currentPage = Math.min(Math.max(1, page), totalPages)
+  const pagedRekap = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return rekapTahunan.slice(start, start + pageSize)
+  }, [rekapTahunan, currentPage, pageSize])
 
   function printSPT() {
     showToast('🖨️ Membuka dialog print — gunakan "Save as PDF" untuk simpan', 'ok', 1500)
@@ -172,41 +192,59 @@ export default function PajakSPTClient({
             compact
           />
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 720 }}>
-            <thead>
-              <tr style={{ background: '#1e2433' }}>
-                <th style={th}>No</th>
-                <th style={th}>Periode</th>
-                <th style={th}>Dasar Pengenaan (Net Omzet)</th>
-                <th style={th}>Tarif</th>
-                <th style={th}>Nilai PPh</th>
-                <th style={th}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rekapTahunan.map((r, i) => (
-                <tr key={r.id} style={{ borderTop: '1px solid #1e2433' }}>
-                  <td style={td}>{i + 1}</td>
-                  <td style={{ ...td, fontWeight: 700 }}>{fmtPeriode(r.periode)}</td>
-                  <td style={td}>{fmtRp(r.dasar_pengenaan)}</td>
-                  <td style={td}>{Number(r.tarif).toFixed(2)}%</td>
-                  <td style={{ ...td, fontWeight: 700, color: '#f97316' }}>{fmtRp(r.nilai_pajak)}</td>
-                  <td style={td}>
-                    {r.status_bayar === 'LUNAS' && <span style={badge('#22c55e', '#22c55e20')}>✅ LUNAS</span>}
-                    {r.status_bayar === 'BEAS' && <span style={badge('#3b82f6', '#3b82f620')}>🆓 BEBAS</span>}
-                    {r.status_bayar === 'BELUM' && <span style={badge('#f59e0b', '#f59e0b20')}>⏳ BELUM</span>}
-                  </td>
+          <>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 720 }}>
+              <thead>
+                <tr style={{ background: '#1e2433' }}>
+                  <th style={th}>No</th>
+                  <th style={th}>Periode</th>
+                  <th style={th}>Dasar Pengenaan (Net Omzet)</th>
+                  <th style={th}>Tarif</th>
+                  <th style={th}>Nilai PPh</th>
+                  <th style={th}>Status</th>
                 </tr>
-              ))}
-              <tr style={{ borderTop: '2px solid #1e2433', background: '#0d111c' }}>
-                <td colSpan={2} style={{ ...td, fontWeight: 800 }}>TOTAL TAHUN {selectedTahun}</td>
-                <td style={{ ...td, fontWeight: 800, color: '#3b82f6' }}>{fmtRp(totalOmzet)}</td>
-                <td style={td}>—</td>
-                <td style={{ ...td, fontWeight: 800, color: '#f97316', fontSize: 14 }}>{fmtRp(totalPPh)}</td>
-                <td style={td}>—</td>
-              </tr>
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pagedRekap.map((r, i) => (
+                  <tr key={r.id} style={{ borderTop: '1px solid #1e2433' }}>
+                    <td style={td}>{(currentPage - 1) * pageSize + i + 1}</td>
+                    <td style={{ ...td, fontWeight: 700 }}>{fmtPeriode(r.periode)}</td>
+                    <td style={td}>{fmtRp(r.dasar_pengenaan)}</td>
+                    <td style={td}>{Number(r.tarif).toFixed(2)}%</td>
+                    <td style={{ ...td, fontWeight: 700, color: '#f97316' }}>{fmtRp(r.nilai_pajak)}</td>
+                    <td style={td}>
+                      {r.status_bayar === 'LUNAS' && <span style={badge('#22c55e', '#22c55e20')}>✅ LUNAS</span>}
+                      {r.status_bayar === 'BEAS' && <span style={badge('#3b82f6', '#3b82f620')}>🆓 BEBAS</span>}
+                      {r.status_bayar === 'BELUM' && <span style={badge('#f59e0b', '#f59e0b20')}>⏳ BELUM</span>}
+                    </td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: '2px solid #1e2433', background: '#0d111c' }}>
+                  <td colSpan={2} style={{ ...td, fontWeight: 800 }}>TOTAL TAHUN {selectedTahun}</td>
+                  <td style={{ ...td, fontWeight: 800, color: '#3b82f6' }}>{fmtRp(totalOmzet)}</td>
+                  <td style={td}>—</td>
+                  <td style={{ ...td, fontWeight: 800, color: '#f97316', fontSize: 14 }}>{fmtRp(totalPPh)}</td>
+                  <td style={td}>—</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div className="no-print">
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={rekapTahunan.length}
+                pageSize={pageSize}
+                pageSizeOptions={[6, 12]}
+                onPageChange={(p) => setPage(p)}
+                onPageSizeChange={(sz) => {
+                  setPageSize(sz)
+                  setPage(1)
+                }}
+                itemLabel="bulan"
+              />
+            </div>
+          </>
         )}
       </div>
 

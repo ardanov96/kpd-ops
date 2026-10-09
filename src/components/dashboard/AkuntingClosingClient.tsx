@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import TablePagination from './TablePagination'
 import { useRouter } from 'next/navigation'
 import { useToast } from './Toast'
 import { formatCurrencyShort, formatCurrency, formatCurrencyAccounting } from '@/lib/format/currency'
@@ -28,6 +29,15 @@ export default function AkuntingClosingClient({
   const [confirmInput, setConfirmInput] = useState('')
   const [busy, setBusy] = useState(false)
   const { showToast } = useToast()
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyPageSize, setHistoryPageSize] = useState(12)
+
+  const totalHistoryPages = Math.max(1, Math.ceil(history.length / historyPageSize))
+  const currentHistoryPage = Math.min(Math.max(1, historyPage), totalHistoryPages)
+  const pagedHistory = useMemo(() => {
+    const start = (currentHistoryPage - 1) * historyPageSize
+    return history.slice(start, start + historyPageSize)
+  }, [history, currentHistoryPage, historyPageSize])
 
   function changePeriode(p: string) {
     const params = new URLSearchParams()
@@ -221,7 +231,7 @@ export default function AkuntingClosingClient({
                 </tr>
               </thead>
               <tbody>
-                {history.map((h) => (
+                {pagedHistory.map((h) => (
                   <tr key={h.id} style={{ borderTop: '1px solid #1e2433' }}>
                     <td style={{ padding: '10px 12px', fontWeight: 700 }}>{h.periode}</td>
                     <td style={{ padding: '10px 12px', color: '#22c55e' }}>{formatCurrencyAccounting(Number(h.total_income))}</td>
@@ -243,6 +253,19 @@ export default function AkuntingClosingClient({
                 ))}
               </tbody>
             </table>
+            <TablePagination
+              currentPage={currentHistoryPage}
+              totalPages={totalHistoryPages}
+              totalItems={history.length}
+              pageSize={historyPageSize}
+              pageSizeOptions={[6, 12, 24, 36]}
+              onPageChange={(p) => setHistoryPage(p)}
+              onPageSizeChange={(sz) => {
+                setHistoryPageSize(sz)
+                setHistoryPage(1)
+              }}
+              itemLabel="periode closing"
+            />
           </div>
         )}
       </div>

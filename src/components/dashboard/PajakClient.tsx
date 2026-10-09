@@ -1,9 +1,11 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useToast } from './Toast'
+import PanduanBillingModal from './PanduanBillingModal'
+import TablePagination from './TablePagination'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(Number(n || 0)).toLocaleString('id-ID') + ',-'
@@ -11,8 +13,17 @@ const fmtRp = (n: number) =>
 function formatNPWP(raw: string | null | undefined): string {
   if (!raw) return ''
   const c = String(raw).replace(/\D/g, '')
-  if (c.length !== 15) return raw
-  return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}.${c.slice(8, 9)}-${c.slice(9, 12)}.${c.slice(12, 15)}`
+  if (c.length === 15) {
+    return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}.${c.slice(8, 9)}-${c.slice(9, 12)}.${c.slice(12, 15)}`
+  }
+  if (c.length === 16) {
+    if (c.startsWith('0')) {
+      const p = c.slice(1)
+      return `${c} (${p.slice(0, 2)}.${p.slice(2, 5)}.${p.slice(5, 8)}.${p.slice(8, 9)}-${p.slice(9, 12)}.${p.slice(12, 15)})`
+    }
+    return c
+  }
+  return raw
 }
 
 function fmtPeriode(p: string): string {
@@ -71,7 +82,17 @@ export default function PajakClient({
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
+  const [showGuideModal, setShowGuideModal] = useState(false)
+  const [rekapPage, setRekapPage] = useState(1)
+  const [rekapPageSize, setRekapPageSize] = useState(6)
   const { showToast } = useToast()
+
+  const totalRekapPages = Math.max(1, Math.ceil(rekapList.length / rekapPageSize))
+  const currentRekapPage = Math.min(Math.max(1, rekapPage), totalRekapPages)
+  const pagedRekap = useMemo(() => {
+    const start = (currentRekapPage - 1) * rekapPageSize
+    return rekapList.slice(start, start + rekapPageSize)
+  }, [rekapList, currentRekapPage, rekapPageSize])
 
   async function generateBulanIni() {
     setBusy(true)
@@ -107,7 +128,7 @@ export default function PajakClient({
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>🧾 Pajak</h1>
           <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
-            {outlet.nama} ({outlet.kode}) · NPWP: <strong style={{ color: '#e2e8f0' }}>{npwpFormatted || '⚠ belum diisi'}</strong>
+            {config?.nama_wp ? <strong style={{ color: '#f8fafc' }}>{config.nama_wp}</strong> : `${outlet.nama} (${outlet.kode})`} · NPWP: <strong style={{ color: '#e2e8f0', fontFamily: 'monospace' }}>{npwpFormatted || '⚠ belum diisi'}</strong>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -131,6 +152,16 @@ export default function PajakClient({
             color: '#fff', padding: '8px 14px', fontSize: 13, fontWeight: 600, textDecoration: 'none',
             display: 'inline-flex', alignItems: 'center', gap: 6,
           }}>📊 SPT Tahunan</Link>
+          <button
+            onClick={() => setShowGuideModal(true)}
+            style={{
+              background: '#1e2433', border: '1px solid #3b82f6', borderRadius: 8,
+              color: '#38bdf8', padding: '8px 14px', fontSize: 13, fontWeight: 600,
+              display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+            }}
+          >
+            📖 Panduan e-Billing
+          </button>
         </div>
       </div>
 
@@ -281,9 +312,14 @@ export default function PajakClient({
         </div>
       </div>
 
-      {/* Tabel ringkas 6 rekap terakhir */}
+      {/* Tabel rekap pajak dengan pagination */}
       <div>
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>📋 6 Rekap Terakhir</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 12px' }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>📋 Rekap Periode Pajak</h2>
+          <Link href="/dashboard/pajak/rekap" style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>
+            Lihat semua &amp; filter →
+          </Link>
+        </div>
         {rekapList.length === 0 ? (
           <div style={{ color: '#64748b', padding: 24, textAlign: 'center', background: '#111827', borderRadius: 10 }}>
             Belum ada rekap pajak. Generate rekap bulan ini untuk memulai.
@@ -302,7 +338,7 @@ export default function PajakClient({
                 </tr>
               </thead>
               <tbody>
-                {rekapList.slice(0, 6).map((r) => (
+                {pagedRekap.map((r) => (
                   <tr key={r.id} style={{ borderTop: '1px solid #1e2433' }}>
                     <td style={{ ...td, fontWeight: 700 }}>{fmtPeriode(r.periode)}</td>
                     <td style={td}>{fmtRp(r.dasar_pengenaan)}</td>
@@ -318,10 +354,30 @@ export default function PajakClient({
                 ))}
               </tbody>
             </table>
+
+            <TablePagination
+              currentPage={currentRekapPage}
+              totalPages={totalRekapPages}
+              totalItems={rekapList.length}
+              pageSize={rekapPageSize}
+              pageSizeOptions={[6, 12, 24]}
+              onPageChange={(p) => setRekapPage(p)}
+              onPageSizeChange={(sz) => {
+                setRekapPageSize(sz)
+                setRekapPage(1)
+              }}
+              itemLabel="periode"
+            />
           </div>
         )}
       </div>
 
+      <PanduanBillingModal
+        isOpen={showGuideModal}
+        onClose={() => setShowGuideModal(false)}
+        npwp={config?.npwp}
+        namaWp={config?.nama_wp}
+      />
     </div>
   )
 }

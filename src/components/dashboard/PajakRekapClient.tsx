@@ -1,10 +1,11 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import ViewFileButton from './ViewFileButton'
 import { useToast } from './Toast'
+import TablePagination from './TablePagination'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(Number(n || 0)).toLocaleString('id-ID') + ',-'
@@ -38,15 +39,25 @@ export default function PajakRekapClient({
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(12) // Default 12 bulan (1 tahun kalender)
   const { showToast } = useToast()
 
   function setFilter(key: 'tahun' | 'status', value: string) {
+    setPage(1)
     const sp = new URLSearchParams()
     if (selectedTahun && key !== 'tahun') sp.set('tahun', selectedTahun)
     if (selectedStatus && key !== 'status') sp.set('status', selectedStatus)
     if (value) sp.set(key, value)
     router.push(`/dashboard/pajak/rekap${sp.toString() ? `?${sp.toString()}` : ''}`)
   }
+
+  const totalPages = Math.max(1, Math.ceil(rekapList.length / pageSize))
+  const currentPage = Math.min(Math.max(1, page), totalPages)
+  const pagedRekapList = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return rekapList.slice(start, start + pageSize)
+  }, [rekapList, currentPage, pageSize])
 
   async function generate(periode: string) {
     setBusy(periode)
@@ -140,55 +151,71 @@ export default function PajakRekapClient({
         {rekapList.length === 0 ? (
           <div style={{ color: '#64748b', padding: 32, textAlign: 'center' }}>Tidak ada data sesuai filter.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 800 }}>
-            <thead>
-              <tr style={{ background: '#1e2433' }}>
-                <th style={th}>Periode</th>
-                <th style={th}>Dasar (Net Omzet)</th>
-                <th style={th}>Tarif</th>
-                <th style={th}>Nilai PPh</th>
-                <th style={th}>Status</th>
-                <th style={th}>Tgl Bayar</th>
-                <th style={th}>Bukti</th>
-                <th style={th}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rekapList.map((r) => (
-                <tr key={r.id} style={{ borderTop: '1px solid #1e2433' }}>
-                  <td style={{ ...td, fontWeight: 700 }}>{fmtPeriode(r.periode)}</td>
-                  <td style={td}>{fmtRp(r.dasar_pengenaan)}</td>
-                  <td style={td}>{Number(r.tarif).toFixed(2)}%</td>
-                  <td style={{ ...td, fontWeight: 700, color: '#f97316' }}>{fmtRp(r.nilai_pajak)}</td>
-                  <td style={td}>
-                    {r.status_bayar === 'LUNAS' && <span style={badge('#22c55e', '#22c55e20')}>✅ LUNAS</span>}
-                    {r.status_bayar === 'BEAS' && <span style={badge('#3b82f6', '#3b82f620')}>🆓 BEBAS</span>}
-                    {r.status_bayar === 'BELUM' && <span style={badge('#f59e0b', '#f59e0b20')}>⏳ BELUM</span>}
-                  </td>
-                  <td style={td}>{r.tanggal_bayar ? new Date(r.tanggal_bayar).toLocaleDateString('id-ID') : '—'}</td>
-                  <td style={td}>
-                    {r.bukti_url ? (
-                      <ViewFileButton bucket="bukti-pajak" path={r.bukti_url} label="📎 Lihat" />
-                    ) : <span style={{ color: '#475569', fontSize: 11 }}>—</span>}
-                  </td>
-                  <td style={td}>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      <button onClick={() => generate(r.periode)} disabled={busy === r.periode} style={smBtn('#1e2433', '#94a3b8')} title="Re-generate (idempotent)">
-                        {busy === r.periode ? '⏳' : '🔄'}
-                      </button>
-                      {r.status_bayar !== 'LUNAS' && (
-                        <button onClick={() => updateStatus(r.id, 'LUNAS')} disabled={busy === r.id} style={smBtn('#22c55e20', '#22c55e')} title="Set LUNAS">✅</button>
-                      )}
-                      {r.status_bayar === 'LUNAS' && (
-                        <button onClick={() => updateStatus(r.id, 'BELUM')} disabled={busy === r.id} style={smBtn('#f59e0b20', '#f59e0b')} title="Set BELUM">↩️</button>
-                      )}
-                      <Link href={`/dashboard/pajak/upload-bukti?id=${r.id}`} style={smLink('#1e2433', '#94a3b8')} title="Upload bukti">📎</Link>
-                    </div>
-                  </td>
+          <>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 800 }}>
+              <thead>
+                <tr style={{ background: '#1e2433' }}>
+                  <th style={th}>Periode</th>
+                  <th style={th}>Dasar (Net Omzet)</th>
+                  <th style={th}>Tarif</th>
+                  <th style={th}>Nilai PPh</th>
+                  <th style={th}>Status</th>
+                  <th style={th}>Tgl Bayar</th>
+                  <th style={th}>Bukti</th>
+                  <th style={th}>Aksi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pagedRekapList.map((r) => (
+                  <tr key={r.id} style={{ borderTop: '1px solid #1e2433' }}>
+                    <td style={{ ...td, fontWeight: 700 }}>{fmtPeriode(r.periode)}</td>
+                    <td style={td}>{fmtRp(r.dasar_pengenaan)}</td>
+                    <td style={td}>{Number(r.tarif).toFixed(2)}%</td>
+                    <td style={{ ...td, fontWeight: 700, color: '#f97316' }}>{fmtRp(r.nilai_pajak)}</td>
+                    <td style={td}>
+                      {r.status_bayar === 'LUNAS' && <span style={badge('#22c55e', '#22c55e20')}>✅ LUNAS</span>}
+                      {r.status_bayar === 'BEAS' && <span style={badge('#3b82f6', '#3b82f620')}>🆓 BEBAS</span>}
+                      {r.status_bayar === 'BELUM' && <span style={badge('#f59e0b', '#f59e0b20')}>⏳ BELUM</span>}
+                    </td>
+                    <td style={td}>{r.tanggal_bayar ? new Date(r.tanggal_bayar).toLocaleDateString('id-ID') : '—'}</td>
+                    <td style={td}>
+                      {r.bukti_url ? (
+                        <ViewFileButton bucket="bukti-pajak" path={r.bukti_url} label="📎 Lihat" />
+                      ) : <span style={{ color: '#475569', fontSize: 11 }}>—</span>}
+                    </td>
+                    <td style={td}>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        <button onClick={() => generate(r.periode)} disabled={busy === r.periode} style={smBtn('#1e2433', '#94a3b8')} title="Re-generate (idempotent)">
+                          {busy === r.periode ? '⏳' : '🔄'}
+                        </button>
+                        {r.status_bayar !== 'LUNAS' && (
+                          <button onClick={() => updateStatus(r.id, 'LUNAS')} disabled={busy === r.id} style={smBtn('#22c55e20', '#22c55e')} title="Set LUNAS">✅</button>
+                        )}
+                        {r.status_bayar === 'LUNAS' && (
+                          <button onClick={() => updateStatus(r.id, 'BELUM')} disabled={busy === r.id} style={smBtn('#f59e0b20', '#f59e0b')} title="Set BELUM">↩️</button>
+                        )}
+                        <Link href={`/dashboard/pajak/upload-bukti?id=${r.id}`} style={smLink('#1e2433', '#94a3b8')} title="Upload bukti">📎</Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={rekapList.length}
+              pageSize={pageSize}
+              pageSizeOptions={[6, 12, 24, 36]}
+              onPageChange={(p) => setPage(p)}
+              onPageSizeChange={(sz) => {
+                setPageSize(sz)
+                setPage(1)
+              }}
+              itemLabel="bulan / periode"
+            />
+          </>
         )}
       </div>
 

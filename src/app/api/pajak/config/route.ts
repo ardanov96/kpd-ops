@@ -39,8 +39,8 @@ export async function POST(req: NextRequest) {
 
   if (npwp !== undefined && npwp !== null && npwp !== '') {
     const cleaned = String(npwp).replace(/\D/g, '')
-    if (cleaned.length !== 15) {
-      return apiBadRequest('NPWP harus 15 digit angka')
+    if (cleaned.length !== 15 && cleaned.length !== 16) {
+      return apiBadRequest('NPWP harus 15 atau 16 digit angka')
     }
   }
 

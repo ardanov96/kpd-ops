@@ -41,7 +41,7 @@ export default async function AkuntingExpensePage({
       sql += ` AND tk.tipe = $${sqlParams.length}`
     }
 
-    sql += ' ORDER BY tk.tanggal DESC, tk.created_at DESC LIMIT 100'
+    sql += ' ORDER BY tk.tanggal DESC, tk.created_at DESC LIMIT 500'
 
     const txRes = await query(sql, sqlParams)
     transaksiList = txRes.rows

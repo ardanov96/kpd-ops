@@ -465,6 +465,31 @@
 - Laba bersih periode November 2025 tidak terbebani pengeluaran Rp 678.000.
 - Saldo Kas/Bank outlet tidak berkurang.
 
+### D-040: Pencatatan Beban Pembuatan & Pemasangan Neon Box JNE Express (Desember 2025)
+**Tanggal:** 8 Oktober 2026
+**Konteks:**
+- Terdapat pengeluaran operasional outlet terkait pembuatan dan pemasangan neon box JNE Express senilai Rp 3.000.000 yang dilakukan pada tanggal 12 Desember 2025.
+**Keputusan:**
+- Dicatat ke dalam `transaksi_keuangan` sebagai pengeluaran (`tipe = 'KELUAR'`, `nominal = 3000000`, `metode = 'BANK'`, `sumber = 'MANUAL'`) pada tanggal `2025-12-12`.
+- Diklasifikasikan ke dalam kategori **5750 (Beban Renovasi Outlet)** karena neon box berukuran besar yang dipasang di fasad fisik ruko outlet Jl. Kepundung tergolong pekerjaan fisik eksterior/fasad permanen (sesuai spesifikasi akun 5750 pada D-027).
+- Diterapkan melalui migrasi database `051_add_neon_box_jne_expense.sql`.
+**Dampak:**
+- Beban Renovasi Outlet (5750) periode Desember 2025 tercatat menjadi Rp 5.000.000 (terdiri dari pintu masuk gang parkir Rp 2.000.000 dan neon box JNE Rp 3.000.000).
+- Total pengeluaran operasional periode Desember 2025 tersinkronisasi menjadi Rp 5.639.190 dan posisi kas outlet terpotong secara akurat.
+
+### D-041: Penyesuaian Beban Internet IndiHome Periode Oktober 2026 & Update Template Recurring
+**Tanggal:** 8 Oktober 2026
+**Konteks:**
+- Tagihan internet IndiHome untuk periode Oktober 2026 mengalami kenaikan/pembengkakan dari periode sebelumnya (September: Rp 194.250) menjadi **Rp 197.025** akibat volume pemakaian yang sedikit lebih banyak.
+**Keputusan:**
+- Transaksi tagihan IndiHome Oktober 2026 dicatat ke `transaksi_keuangan` senilai **Rp 197.025** pada tanggal `2026-10-20` (sumber `RECURRING`, metode `BANK`, kategori `5200 - Beban Internet (WiFi)`).
+- Ditautkan dengan `ref_id` ke template recurring IndiHome dan `last_run` template diset ke `2026-10-20` agar aman dari duplikasi otomatis saat cron berjalan.
+- Nominal default pada tabel `recurring_transactions` diperbarui menjadi **Rp 197.025** mengikuti tagihan aktual terkini.
+- Diterapkan melalui migrasi database `052_add_indihome_october_expense.sql`.
+**Dampak:**
+- Beban Internet (5200) periode Oktober 2026 tercatat sebesar Rp 197.025.
+- Total beban operasional periode Oktober 2026 terakumulasi menjadi Rp 387.025 secara akurat pada laporan laba rugi dan arus kas.
+
 ---
 
 ## ❓ Keputusan yang Masih Pending

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import TablePagination from './TablePagination'
 import { useRouter } from 'next/navigation'
 import type { TipeTransaksiKeuangan, MetodeBayar, KategoriAkun, RecurringTransaction } from '@/types'
 import EmptyState from './EmptyState'
@@ -40,6 +41,15 @@ export default function AkuntingRecurringClient({
     aktif: true,
   })
   const [busy, setBusy] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  const totalPages = Math.max(1, Math.ceil(recurringList.length / pageSize))
+  const currentPage = Math.min(Math.max(1, page), totalPages)
+  const pagedRecurringList = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return recurringList.slice(start, start + pageSize)
+  }, [recurringList, currentPage, pageSize])
   const { showToast } = useToast()
   const { confirm: confirmDialog, ConfirmNode } = useConfirm()
 
@@ -241,7 +251,7 @@ export default function AkuntingRecurringClient({
                 />
               </td></tr>
             )}
-            {recurringList.map((r) => (
+            {pagedRecurringList.map((r) => (
               <tr key={r.id} style={{ borderTop: '1px solid #1e2433', opacity: r.aktif ? 1 : 0.5 }}>
                 <td style={{ ...td(), fontWeight: 600 }}>
                   <div>{r.nama_template}</div>
@@ -306,6 +316,19 @@ export default function AkuntingRecurringClient({
             ))}
           </tbody>
         </table>
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={recurringList.length}
+          pageSize={pageSize}
+          pageSizeOptions={[5, 10, 20]}
+          onPageChange={(p) => setPage(p)}
+          onPageSizeChange={(sz) => {
+            setPageSize(sz)
+            setPage(1)
+          }}
+          itemLabel="template"
+        />
       </div>
 
       {/* Modal */}

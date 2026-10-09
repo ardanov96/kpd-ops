@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useToast } from './Toast'
+import PanduanBillingModal from './PanduanBillingModal'
 
 const fmtRp = (n: number) =>
   'Rp. ' + Math.round(Number(n || 0)).toLocaleString('id-ID') + ',-'
@@ -29,9 +30,10 @@ type Rekap = {
 }
 
 export default function PajakUploadBuktiClient({
-  outlet, rekapList, initialId, initialRekap,
+  outlet, config, rekapList, initialId, initialRekap,
 }: {
   outlet: { id: string; kode: string; nama: string }
+  config?: any
   rekapList: Rekap[]
   initialId: string
   initialRekap: Rekap | null
@@ -53,6 +55,7 @@ export default function PajakUploadBuktiClient({
   const [busy, setBusy] = useState(false)
   const [uploadBusy, setUploadBusy] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [showGuideModal, setShowGuideModal] = useState(false)
   const { showToast } = useToast()
 
   const selected = useMemo(
@@ -240,12 +243,35 @@ export default function PajakUploadBuktiClient({
 
   return (
     <div style={{ padding: '24px 32px', color: '#e2e8f0' }}>
-      <button onClick={() => router.push('/dashboard/pajak')} style={{
-        background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 13, padding: 0, marginBottom: 8,
-      }}>← Kembali ke Pajak</button>
-      <h1 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>📎 Upload Bukti SSP</h1>
-      <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20 }}>
-        {outlet.nama} ({outlet.kode}) · Set status LUNAS setelah bayar ke e-Billing DJP
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+        <div>
+          <button onClick={() => router.push('/dashboard/pajak')} style={{
+            background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 13, padding: 0, marginBottom: 8,
+          }}>← Kembali ke Pajak</button>
+          <h1 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>📎 Upload Bukti SSP</h1>
+          <div style={{ fontSize: 13, color: '#94a3b8' }}>
+            {outlet.nama} ({outlet.kode}) · Set status LUNAS setelah bayar ke e-Billing DJP
+          </div>
+        </div>
+        <button
+          onClick={() => setShowGuideModal(true)}
+          style={{
+            background: '#1e2433',
+            border: '1px solid #3b82f6',
+            borderRadius: 8,
+            color: '#38bdf8',
+            padding: '8px 16px',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            transition: 'all 0.15s',
+          }}
+        >
+          📖 Panduan Bayar e-Billing
+        </button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) 2fr', gap: 16, alignItems: 'flex-start' }}>
@@ -333,6 +359,42 @@ export default function PajakUploadBuktiClient({
                 {selected.status_bayar === 'BEAS' && <span style={{ color: '#3b82f6', fontWeight: 700 }}>🆓 BEBAS</span>}
                 {selected.tanggal_bayar && ` · ${new Date(selected.tanggal_bayar).toLocaleDateString('id-ID')}`}
               </div>
+
+              {/* Informative billing guide banner */}
+              {selected.status_bayar === 'BELUM' && Number(selected.nilai_pajak) > 0 && (
+                <div style={{
+                  background: '#0284c715',
+                  border: '1px solid #0284c740',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}>
+                  <div style={{ fontSize: 12, color: '#38bdf8' }}>
+                    💡 e-Billing SSE: KAP <strong>411128</strong> · KJS <strong>420</strong> · Setor: <strong>{fmtRp(selected.nilai_pajak)}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowGuideModal(true)}
+                    style={{
+                      background: '#0284c7',
+                      border: 'none',
+                      borderRadius: 6,
+                      color: '#fff',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '4px 10px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Buka Panduan ↗
+                  </button>
+                </div>
+              )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {/* ========================================================
@@ -475,6 +537,15 @@ export default function PajakUploadBuktiClient({
       <div style={{ marginTop: 24 }}>
         <Link href="/dashboard/pajak/rekap" style={{ color: '#3b82f6', fontSize: 13 }}>← Lihat tabel rekap lengkap</Link>
       </div>
+
+      <PanduanBillingModal
+        isOpen={showGuideModal}
+        onClose={() => setShowGuideModal(false)}
+        periode={selected?.periode}
+        nominal={selected?.nilai_pajak}
+        npwp={config?.npwp}
+        namaWp={config?.nama_wp}
+      />
     </div>
   )
 }

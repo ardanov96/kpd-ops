@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
+import TablePagination from './TablePagination'
 import { useRouter } from 'next/navigation'
 import type { TipeTransaksiKeuangan, TipeAkun, MetodeBayar, KategoriAkun, TransaksiKeuangan } from '@/types'
 import ViewFileButton from './ViewFileButton'
@@ -92,7 +93,18 @@ export default function AkuntingExpenseForm({
     return true
   })
 
+  const [expensePage, setExpensePage] = useState(1)
+  const [expensePageSize, setExpensePageSize] = useState(10)
+
+  const totalExpensePages = Math.max(1, Math.ceil(filteredList.length / expensePageSize))
+  const currentExpensePage = Math.min(Math.max(1, expensePage), totalExpensePages)
+  const pagedList = useMemo(() => {
+    const start = (currentExpensePage - 1) * expensePageSize
+    return filteredList.slice(start, start + expensePageSize)
+  }, [filteredList, currentExpensePage, expensePageSize])
+
   function updateFilter(key: string, value: string) {
+    setExpensePage(1)
     const params = new URLSearchParams()
     if (filterPeriode && key !== 'periode') params.set('periode', filterPeriode)
     if (filterTipe && key !== 'tipe') params.set('tipe', filterTipe)
@@ -623,7 +635,7 @@ export default function AkuntingExpenseForm({
                     {transaksiList.length === 0 ? 'Belum ada transaksi.' : 'Tidak ada hasil filter.'}
                   </td></tr>
                 )}
-                {filteredList.map((t) => (
+                {pagedList.map((t) => (
                   <tr key={t.id} style={{ borderTop: '1px solid #1e2433' }}>
                     <td style={td()}>{t.tanggal}</td>
                     <td style={td()}>
@@ -665,6 +677,19 @@ export default function AkuntingExpenseForm({
                 ))}
               </tbody>
             </table>
+            <TablePagination
+              currentPage={currentExpensePage}
+              totalPages={totalExpensePages}
+              totalItems={filteredList.length}
+              pageSize={expensePageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={(p) => setExpensePage(p)}
+              onPageSizeChange={(sz) => {
+                setExpensePageSize(sz)
+                setExpensePage(1)
+              }}
+              itemLabel="transaksi"
+            />
           </div>
         </div>
       </div>

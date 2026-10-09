@@ -8,8 +8,17 @@ import Link from 'next/link'
 function formatNPWP(raw: string | null | undefined): string {
   if (!raw) return ''
   const c = String(raw).replace(/\D/g, '')
-  if (c.length !== 15) return raw
-  return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}.${c.slice(8, 9)}-${c.slice(9, 12)}.${c.slice(12, 15)}`
+  if (c.length === 15) {
+    return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}.${c.slice(8, 9)}-${c.slice(9, 12)}.${c.slice(12, 15)}`
+  }
+  if (c.length === 16) {
+    if (c.startsWith('0')) {
+      const p = c.slice(1)
+      return `${c} (${p.slice(0, 2)}.${p.slice(2, 5)}.${p.slice(5, 8)}.${p.slice(8, 9)}-${p.slice(9, 12)}.${p.slice(12, 15)})`
+    }
+    return c
+  }
+  return raw
 }
 
 export default function PajakPengaturanClient({
@@ -22,31 +31,38 @@ export default function PajakPengaturanClient({
   const [npwp, setNpwp] = useState<string>(config?.npwp || '')
   const [namaWp, setNamaWp] = useState<string>(config?.nama_wp || outlet.nama)
   const [pkp, setPkp] = useState<boolean>(config?.pkp || false)
-  const [formSpt, setFormSpt] = useState<string>(config?.form_spt || '1770S3')
+  const [formSpt, setFormSpt] = useState<string>(config?.form_spt || '1771')
   const [omzetTahunan, setOmzetTahunan] = useState<number>(Number(config?.omzet_tahunan) || 0)
   const [saving, setSaving] = useState(false)
   const { showToast } = useToast()
 
-  // Auto-format NPWP saat user mengetik
+  // Auto-format NPWP saat user mengetik (dukung 15 dan 16 digit)
   function onNpwpChange(raw: string) {
-    const c = raw.replace(/\D/g, '').slice(0, 15)
-    let formatted = c
-    if (c.length > 2) formatted = c.slice(0, 2) + '.' + c.slice(2)
-    if (c.length > 5) formatted = formatted.slice(0, 6) + '.' + c.slice(5)
-    if (c.length > 8) formatted = formatted.slice(0, 10) + '.' + c.slice(8)
-    if (c.length > 9) formatted = formatted.slice(0, 12) + '-' + c.slice(9)
-    if (c.length > 12) formatted = formatted.slice(0, 16) + '.' + c.slice(12)
-    setNpwp(formatted)
+    const c = raw.replace(/\D/g, '').slice(0, 16)
+    if (c.length <= 15) {
+      let formatted = c
+      if (c.length > 2) formatted = c.slice(0, 2) + '.' + c.slice(2)
+      if (c.length > 5) formatted = formatted.slice(0, 6) + '.' + c.slice(5)
+      if (c.length > 8) formatted = formatted.slice(0, 10) + '.' + c.slice(8)
+      if (c.length > 9) formatted = formatted.slice(0, 12) + '-' + c.slice(9)
+      if (c.length > 12) formatted = formatted.slice(0, 16) + '.' + c.slice(12)
+      setNpwp(formatted)
+    } else {
+      setNpwp(c)
+    }
   }
 
   async function save() {
     if (!namaWp.trim()) {
       return showToast('Nama Wajib Pajak wajib diisi', 'err')
     }
+    const cleaned = npwp.replace(/\D/g, '') || null
+    if (cleaned && cleaned.length !== 15 && cleaned.length !== 16) {
+      return showToast('NPWP harus 15 atau 16 digit angka', 'err')
+    }
     setSaving(true)
     try {
       // Kirim dalam bentuk angka saja (sesuai validasi server)
-      const cleaned = npwp.replace(/\D/g, '') || null
       const res = await fetch('/api/pajak/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -94,13 +110,10 @@ export default function PajakPengaturanClient({
           {/* NPWP */}
           <div>
             <label style={lbl}>NPWP *</label>
-            <input style={{ ...inp, fontFamily: 'monospace' }} value={npwp} onChange={(e) => onNpwpChange(e.target.value)} placeholder="00.000.000.0-000.000" />
-            {npwp && previewNpwp.length === 0 && (
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>15 digit angka</div>
-            )}
-            <div style={{ fontSize: 11, color: npwp.replace(/\D/g, '').length === 15 ? '#22c55e' : '#64748b', marginTop: 4 }}>
-              {npwp.replace(/\D/g, '').length}/15 digit
-              {npwp.replace(/\D/g, '').length === 15 && ' ✅'}
+            <input style={{ ...inp, fontFamily: 'monospace' }} value={npwp} onChange={(e) => onNpwpChange(e.target.value)} placeholder="00.000.000.0-000.000 atau 16 digit" />
+            <div style={{ fontSize: 11, color: (npwp.replace(/\D/g, '').length === 15 || npwp.replace(/\D/g, '').length === 16) ? '#22c55e' : '#64748b', marginTop: 4 }}>
+              {npwp.replace(/\D/g, '').length} digit
+              {(npwp.replace(/\D/g, '').length === 15 || npwp.replace(/\D/g, '').length === 16) ? ' ✅ (Format Valid 15/16 Digit)' : ' (Standar 15 digit atau 16 digit Coretax)'}
             </div>
           </div>
 
@@ -126,11 +139,11 @@ export default function PajakPengaturanClient({
                 cursor: 'pointer',
                 background: pkp ? 'linear-gradient(135deg, #f97316, #ef4444)' : '#1e2433',
                 color: pkp ? '#fff' : '#94a3b8',
-                border: pkp ? 'none' : '1px solid #1e2433',
+                border: !pkp ? 'none' : '1px solid #1e2433',
               }}>✅ PKP</button>
             </div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
-              MVP default: Non-PKP. PKP hanya untuk outlet dengan omzet &gt; Rp 4,8 M.
+              Default: Non-PKP. PKP hanya untuk wajib pajak dengan omzet &gt; Rp 4,8 Miliar.
             </div>
           </div>
 
@@ -138,13 +151,12 @@ export default function PajakPengaturanClient({
           <div>
             <label style={lbl}>Form SPT Tahunan</label>
             <select value={formSpt} onChange={(e) => setFormSpt(e.target.value)} style={inp}>
-              <option value="1770S3">1770S3 — WPOP Badan (default)</option>
+              <option value="1771">1771 — Badan / PT Perorangan (Direkomendasikan)</option>
+              <option value="1770S3">1770S3 — Formulir Standar UMK</option>
               <option value="1770S">1770S — WPOP Orang Pribadi</option>
-                           <option value="1771">1771 — Badan (non-Persero)</option>
             </select>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-              ⚠️ Belum terkonfirmasi ke konsultan pajak. Default 1770S3.
-              Verifikasi sebelum pelaporan SPT. (Lihat decision log D-009)
+              Untuk PT Perorangan (Badan Hukum), formulir SPT Tahunan resmi di DJP adalah <strong>1771 (SPT Tahunan PPh Badan)</strong>.
             </div>
           </div>
 

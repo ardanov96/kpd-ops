@@ -16,6 +16,7 @@ export default async function PajakUploadBuktiPage({
   if (!outlet) redirect('/dashboard')
 
   let rekapList: any[] = []
+  let config: any = null
 
   try {
     const res = await query(
@@ -23,6 +24,12 @@ export default async function PajakUploadBuktiPage({
       [outlet.id]
     )
     rekapList = res.rows
+
+    const cfgRes = await query(
+      'SELECT * FROM pajak_config WHERE outlet_id = $1 LIMIT 1',
+      [outlet.id]
+    )
+    config = cfgRes.rows[0] || null
   } catch (e) {
     console.error('Error fetching upload-bukti page data:', e)
   }
@@ -37,6 +44,7 @@ export default async function PajakUploadBuktiPage({
   return (
     <PajakUploadBuktiClient
       outlet={outlet}
+      config={config}
       rekapList={rekapList}
       initialId={initialId || ''}
       initialRekap={initialRekap}
