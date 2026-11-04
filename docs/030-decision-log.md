@@ -490,6 +490,20 @@
 - Beban Internet (5200) periode Oktober 2026 tercatat sebesar Rp 197.025.
 - Total beban operasional periode Oktober 2026 terakumulasi menjadi Rp 387.025 secara akurat pada laporan laba rugi dan arus kas.
 
+### D-042: Pencatatan Beban Penalti Handover Lion Parcel POS KEPUNDUNG (Batch 28 Oktober 2026)
+**Tanggal:** 28 Oktober 2026
+**Konteks:**
+- Owner memperoleh rekap penalti baru dari Lion Parcel untuk POS LION PARCEL KEPUNDUNG (`Rekap_Penalti_POS_LION_PARCEL_KEPUNDUNG.xlsx`) berisi 3 paket berpenalti tipe **Handover** (Non-COD, status POD): STT `11LP1793100087267` (JAGOPACK, Rp 12.000), STT `11LP1793100341185` (REGPACK, Rp 6.000), dan STT `11LP1793100500933` (JAGOPACK, Rp 3.325) — total **Rp 21.325**.
+- Semua paket di-*booking* pada 27 Oktober 2026 pukul 19:21–19:28, sedangkan target serah terima 28 Oktober 2026 pukul 19:21–19:28 baru fisheryati pada 28 Oktober 2026 pukul 19:34, sehingga SLA Handover terlampaui dan kurir memotong penalti dari saldo deposit.
+- Penalti ini **berbeda jenis** dari auto-penalty omzet Rp 500.000 (`sumber = 'KURIR'`,димunculkan otomatis oleh `fn_aggregate_lion_penalty` bila omzet LION < Rp 3.000.000). Penalti di atas adalah penalti operasional per-STT dan dicatat manual, sama seperti penalti BOSSPACK 3 Oktober 2026 (migrasi `055`) serta penalti Reroute/Handover periode sebelumnya.
+**Keputusan:**
+- Ketiga nominal dicatat satu baris per STT di `transaksi_keuangan` sebagai pengeluaran (`tipe = 'KELUAR'`, kategori **5900 — Beban Lain-lain**, `metode = 'BANK'`, `sumber = 'MANUAL'`) pada tanggal **2026-10-28** (tanggal serah terima fisik paket, saat SLA terlampaui), dibuat oleh owner.
+- Diterapkan melalui migrasi database `056_add_lion_parcel_handover_penalty_oct2026.sql`, yang bersifat idempotent (baris di-skip bila nomor STT yang sama sudah tercatat di outlet KEPUNDUNG).
+**Dampak:**
+- Beban Lain-lain (5900) periode Oktober 2026 naik dari Rp 4.650 menjadi **Rp 25.975** (4.650 BOSSPACK + 21.325 batch baru).
+- Total beban operasional periode Oktober 2026 menjadi **Rp 608.000**, sehingga laba kotor periode 2026-10 turun dari Rp 1.123.339 menjadi **Rp 1.102.014** (pendapatan Rp 1.710.014).
+- Periode 2026-10 belum di-closing, sehingga nilai laba rugi live dan snapshot closing tetap konsisten.
+
 ---
 
 ## ❓ Keputusan yang Masih Pending
