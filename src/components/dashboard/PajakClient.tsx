@@ -307,7 +307,7 @@ export default function PajakClient({
           }}>⚙️ Setup NPWP</Link>
         </div>
         <div style={{ fontSize: 11, color: '#64748b', marginTop: 10 }}>
-          💡 Tombol "Generate Rekap" memicu fn_generate_pph_final_rekap (idempotent).
+          💡 Tombol &quot;Generate Rekap&quot; memicu fn_generate_pph_final_rekap (idempotent).
           Biasanya auto-generated saat closing bulan. Tombol ini untuk generate manual bila perlu.
         </div>
       </div>

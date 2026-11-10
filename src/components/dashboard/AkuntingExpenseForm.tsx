@@ -3,6 +3,7 @@
 import { useState, useRef, useMemo } from 'react'
 import TablePagination from './TablePagination'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import type { TipeTransaksiKeuangan, TipeAkun, MetodeBayar, KategoriAkun, TransaksiKeuangan } from '@/types'
 import ViewFileButton from './ViewFileButton'
 import { useConfirm } from './ConfirmDialog'
@@ -319,9 +320,9 @@ export default function AkuntingExpenseForm({
                 <p style={{ margin: 0, color: '#bfdbfe', fontSize: 11 }}>
                   Beban ATK & Packaging (<strong>5100</strong>) dicatat otomatis oleh sistem saat staf mencatat <em>Stok Keluar</em> di Modul Inventaris. Input manual dinonaktifkan untuk mencegah pencatatan ganda.
                 </p>
-                <a href="/dashboard/inventaris" style={{ color: '#60a5fa', textDecoration: 'underline', display: 'inline-block', marginTop: 4, fontWeight: 600, fontSize: 11 }}>
+                <Link href="/dashboard/inventaris" style={{ color: '#60a5fa', textDecoration: 'underline', display: 'inline-block', marginTop: 4, fontWeight: 600, fontSize: 11 }}>
                   Buka Modul Inventaris →
-                </a>
+                </Link>
               </div>
             )}
           </Field>

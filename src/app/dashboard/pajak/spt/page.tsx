@@ -18,6 +18,8 @@ export default async function PajakSPTPage({
   let config: any = null
   let sptTahunan: any[] = []
   let rekapTahunan: any[] = []
+  let selectedTahun = String(new Date().getFullYear())
+  let tahunList: string[] = []
 
   try {
     const cfgRes = await query('SELECT * FROM pajak_config WHERE outlet_id = $1 LIMIT 1', [outlet.id])
@@ -29,7 +31,7 @@ export default async function PajakSPTPage({
     )
     sptTahunan = sptRes.rows
 
-    const selectedTahun = params.tahun || sptTahunan[0]?.tahun || String(new Date().getFullYear())
+    selectedTahun = params.tahun || sptTahunan[0]?.tahun || String(new Date().getFullYear())
 
     const rkRes = await query(
       'SELECT * FROM pajak_rekap WHERE outlet_id = $1 AND periode LIKE $2 ORDER BY periode ASC',
@@ -37,29 +39,27 @@ export default async function PajakSPTPage({
     )
     rekapTahunan = rkRes.rows
 
-    const tahunList = sptTahunan.map((s) => String(s.tahun))
+    tahunList = sptTahunan.map((s) => String(s.tahun))
 
-    return (
-      <PajakSPTClient
-        outlet={outlet}
-        config={config}
-        sptTahunan={sptTahunan}
-        rekapTahunan={rekapTahunan}
-        selectedTahun={selectedTahun}
-        tahunList={tahunList}
-      />
-    )
   } catch (e) {
     console.error('Error fetching SPT page data:', e)
-    return (
-      <PajakSPTClient
-        outlet={outlet}
-        config={null}
-        sptTahunan={[]}
-        rekapTahunan={[]}
-        selectedTahun={String(new Date().getFullYear())}
-        tahunList={[]}
-      />
-    )
+    // Render fallback dilakukan di luar try/catch: JSX tidak boleh dibangun
+    // di dalam try/catch karena error saat render tidak tertangkap olehnya.
+    config = null
+    sptTahunan = []
+    rekapTahunan = []
+    selectedTahun = String(new Date().getFullYear())
+    tahunList = []
   }
+
+  return (
+    <PajakSPTClient
+      outlet={outlet}
+      config={config}
+      sptTahunan={sptTahunan}
+      rekapTahunan={rekapTahunan}
+      selectedTahun={selectedTahun}
+      tahunList={tahunList}
+    />
+  )
 }

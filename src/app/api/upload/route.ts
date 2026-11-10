@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
     }
 
     let aggregatePeriods: string[] = []
-    let aggregateErrors: string[] = []
+    const aggregateErrors: string[] = []
     if (successRows > 0) {
       const periodSet = new Set<string>()
       for (const row of rows) {

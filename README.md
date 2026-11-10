@@ -134,6 +134,35 @@ npm run dev
 
 Default port: `3001` (lihat `package.json`). Buka http://localhost:3001 → otomatis redirect ke `/login`.
 
+> **Port sudah dipakai / dev server tidak start?**
+> Biasanya ada proses `next dev` yatim dari sesi sebelumnya yang masih memegang
+> port 3001 (error: `EADDRINUSE: address already in use :::3001`). Bersihkan
+> dengan:
+>
+> ```bash
+> npm run dev:clean
+> ```
+>
+> Script ini menghentikan proses Next.js milik project ini saja, menghapus
+> lock file `.next/dev/lock`, dan tidak menyentuh dev server project lain.
+
+### 8. Perintah Pengembangan
+
+| Perintah | Fungsi |
+|---|---|
+| `npm run dev` | Start dev server (Turbopack) di port 3001 |
+| `npm run dev:clean` | Hentikan proses yatim + bersihkan lock file |
+| `npm run build` | Production build |
+| `npm start` | Jalankan hasil production build di port 3001 |
+| `npm run lint` | Lint via ESLint CLI (flat config) |
+| `npm run typecheck` | Type-check TypeScript tanpa emit |
+
+> **Catatan Next.js 16:** perintah `next lint` sudah **dihapus** di Next.js 16.
+> Lint sekarang dijalankan lewat ESLint CLI dengan konfigurasi flat config di
+> `eslint.config.mjs`. Aturan `@typescript-eslint/no-explicit-any` sengaja
+> diturunkan ke `warning` karena codebase ini memang memakai `any` untuk baris
+> database yang bentuknya dinamis.
+
 ---
 
 ## 🧭 Menu Sidebar (Setelah Login)
@@ -184,20 +213,42 @@ Parser tambahan:
 
 1. Push project ke GitHub:
 ```bash
-git init
 git add .
-git commit -m "initial commit"
-git remote add origin https://github.com/username/ekspedisi-dashboard.git
-git push -u origin main
+git commit -m "..."
+git push origin master
 ```
 
 2. Buka https://vercel.com → **New Project** → import repo GitHub
-3. Di **Environment Variables**, tambahkan semua variabel dari `.env.local`:
-   - Supabase (3 var wajib)
-   - `SUPABASE_DB_URL` + 4 var `BACKUP_S3_*` + `BACKUP_CRON_SECRET` (untuk backup harian)
-   - `CRON_SECRET` (opsional)
+3. Di **Environment Variables**, tambahkan variabel berikut (WAJIB):
+
+   | Variabel | Keterangan |
+   |---|---|
+   | `DATABASE_URL` | Connection string Neon PostgreSQL (format `postgresql://...`) |
+   | `SESSION_SECRET` | Kunci HMAC penanda tangan cookie session. **Wajib** di production — tanpa ini cookie bisa di-spoof. Generate: `openssl rand -hex 32` |
+   | `DEFAULT_OWNER_PASSWORD` | Password login owner (`owner@ekspedisi.com`) |
+   | `NEXT_PUBLIC_SUPABASE_URL` | URL project Supabase (untuk fitur upload/auth) |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon key Supabase |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Service role key Supabase |
+
+   Variabel opsional (fitur tambahan):
+
+   | Variabel | Keterangan |
+   |---|---|
+   | `APICOOID_KEY` | API key Cek Ongkir (fitur mati tanpa ini) |
+   | `CRON_SECRET` | Proteksi endpoint `/api/cron/*` |
+   | `BACKUP_CRON_SECRET` | Proteksi endpoint `/api/admin/backup` |
+   | `BACKUP_S3_BUCKET` / `BACKUP_S3_REGION` / `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY` | Target bucket S3 untuk backup harian |
+   | `NEXT_PUBLIC_SITE_URL` | URL domain production (dipakai saat logout) |
+
 4. Klik **Deploy**
 5. Selesai! Dapat URL gratis seperti `ekspedisi-dashboard.vercel.app`
+
+> **Penting:** `SESSION_SECRET` **wajib** diisi di production. Tanpa variabel
+> ini aplikasi memakai fallback `dev-only-insecure-secret-do-not-use-in-prod`,
+> sehingga siapa pun bisa memalsukan cookie session admin.
+>
+> Pastikan juga **Build Command** = `npm run build` dan **Install Command** =
+> `npm install` (default Vercel sudah sesuai). Node.js minimum **20.9**.
 
 ### Cron Schedule
 
@@ -207,7 +258,7 @@ git push -u origin main
 | `/api/cron/run-recurring` | `0 23 * * *` (23:00 UTC = 06:00 WIB) | Generate recurring transactions harian |
 | `/api/admin/backup` | `0 23 * * *` (23:00 UTC = 06:00 WIB) | Backup DB → S3 (Sprint 6+) |
 
-Middleware otomatis skip kedua path ini (`/api/cron/*` & `/api/admin/*`) — lihat `D-030` di `docs/030-decision-log.md`.
+Proxy otomatis skip kedua path ini (`/api/cron/*` & `/api/admin/*`) — lihat `D-030` di `docs/030-decision-log.md`.
 
 ---
 

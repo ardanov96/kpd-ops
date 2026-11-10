@@ -94,7 +94,7 @@ export default function AkuntingClient({
     if (rangePreset === 'ALL') {
       const [fy, fm] = firstPeriode.split('-').map(Number)
       const res: string[] = []
-      let cur = new Date(fy, fm - 1, 1)
+      const cur = new Date(fy, fm - 1, 1)
       const end = new Date(cy, cm - 1, 1)
       while (cur <= end) {
         res.push(cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0'))

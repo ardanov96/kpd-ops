@@ -8,6 +8,25 @@ out/
 tsconfig.tsbuildinfo
 build*.log
 tscheck*.log
+lint*.log
+dev_test*.log
+prod_test*.log
+orphan_test*.log
+route_test_result.txt
+dev_test_pid.txt
+prod_test_pid.txt
+clean_pid.txt
+
+# Artefak debug response HTTP (berisi HTML halaman aplikasi)
+resp__*.html
+out_dash.html
+
+# Cookie jar / token session hasil pengujian login (BERISI KREDENSIAL)
+cookies.txt
+cj.txt
+session_cookie.txt
+login_out.txt
+payload.json
 
 .neon
 *.xlsx

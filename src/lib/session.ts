@@ -4,8 +4,9 @@ const SECRET = process.env.SESSION_SECRET || process.env.NEXTAUTH_SECRET || 'dev
  * Tanda-tangani payload session dengan HMAC-SHA256 untuk mencegah
  * client-side spoofing. Format token: `<base64url(json)>.<base64url(hmac)>`.
  *
- * Menggunakan Web Crypto API (`globalThis.crypto.subtle`) karena middleware
- * Next.js jalan di Edge Runtime yg tdk support Node `crypto` module.
+ * Menggunakan Web Crypto API (`globalThis.crypto.subtle`) karena tersedia
+ * baik di Edge Runtime maupun Node.js runtime (proxy Next.js 16 memakai Node.js).
+ * API ini juga berjalan di lingkungan non-browser tanpa polyfill.
  */
 
 function getCrypto(): Crypto {

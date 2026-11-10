@@ -42,12 +42,19 @@ export default function FileViewerModal({
     return () => document.removeEventListener('keydown', handleKey)
   }, [open, onClose])
 
-  if (!open) return null
-
-  // Lock body scroll
-  if (typeof document !== 'undefined') {
+  // Lock body scroll saat modal terbuka. Harus di dalam effect: mengubah DOM
+  // saat render melanggar aturan React purity. Cleanup mengembalikan overflow
+  // sebelumnya agar scroll halaman tidak terkunci permanen setelah modal ditutup.
+  useEffect(() => {
+    if (!open) return
+    const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-  }
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [open])
+
+  if (!open) return null
 
   const isImage = mimeType?.startsWith('image/') ?? /\.(jpe?g|png|webp|gif|bmp)$/i.test(filename)
   const isPdf = mimeType === 'application/pdf' || /\.pdf$/i.test(filename)

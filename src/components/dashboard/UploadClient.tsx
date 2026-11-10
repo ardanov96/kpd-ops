@@ -26,6 +26,35 @@ const LOGS_PER_PAGE = 5
 const EKS_PER_PAGE = 4
 const JNE_KODE = 'JNE'
 
+/**
+ * Komponen paginasi sederhana.
+ * Dideklarasikan di luar `UploadClient` supaya tidak dibuat ulang setiap
+ * render (komponen yang dibuat saat render akan reset state-nya tiap kali).
+ */
+function Pagination({ page, total, onChange }: { page: number; total: number; onChange: (p: number) => void }) {
+  if (total <= 1) return null
+  return (
+    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 12 }}>
+      <button onClick={() => onChange(page - 1)} disabled={page <= 1} style={{
+        background: '#1e2433', border: 'none', borderRadius: 5, padding: '4px 10px',
+        color: page <= 1 ? '#2d3748' : '#94a3b8', cursor: page <= 1 ? 'not-allowed' : 'pointer', fontSize: 12,
+      }}>←</button>
+      {Array.from({ length: total }, (_, i) => i + 1).map(p => (
+        <button key={p} onClick={() => onChange(p)} style={{
+          background: p === page ? 'linear-gradient(135deg,#f97316,#ef4444)' : '#1e2433',
+          border: 'none', borderRadius: 5, padding: '4px 10px',
+          color: p === page ? '#fff' : '#94a3b8', cursor: 'pointer', fontSize: 12,
+          fontWeight: p === page ? 700 : 400,
+        }}>{p}</button>
+      ))}
+      <button onClick={() => onChange(page + 1)} disabled={page >= total} style={{
+        background: '#1e2433', border: 'none', borderRadius: 5, padding: '4px 10px',
+        color: page >= total ? '#2d3748' : '#94a3b8', cursor: page >= total ? 'not-allowed' : 'pointer', fontSize: 12,
+      }}>→</button>
+    </div>
+  )
+}
+
 export default function UploadClient({ logs }: { logs: any[] }) {
   const [ekspedisiList, setEkspedisiList] = useState<Ekspedisi[]>([])
   const [loadingEkspedisi, setLoadingEkspedisi] = useState(true)
@@ -72,15 +101,41 @@ export default function UploadClient({ logs }: { logs: any[] }) {
     }
   }
 
-  useEffect(() => { fetchEkspedisi() }, [])
-
-  // Reset file saat ekspedisi berubah (agar tidak salah format)
+  // Load daftar ekspedisi saat mount.
+  // setState dipanggil di dalam callback promise (bukan langsung di body
+  // effect) agar tidak memicu cascading render. `cancelled` mencegah
+  // setState dijalankan setelah component di-unmount.
   useEffect(() => {
+    let cancelled = false
+    fetch('/api/ekspedisi', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        setEkspedisiList(Array.isArray(data) ? data : [])
+      })
+      .catch(() => {
+        if (cancelled) return
+        setEkspedisiList([])
+      })
+      .finally(() => {
+        if (cancelled) return
+        setLoadingEkspedisi(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Reset file saat ekspedisi berubah (agar tidak salah format).
+  // Dilakukan langsung di event handler, bukan di effect, agar tidak
+  // memicu cascading render.
+  function handleKurirChange(id: string) {
     setFile(null)
     setResult(null)
     setError('')
     if (fileRef.current) fileRef.current.value = ''
-  }, [kurirId])
+    setKurirId(id)
+  }
 
   function openAdd() {
     setEditTarget(null)
@@ -181,30 +236,6 @@ export default function UploadClient({ logs }: { logs: any[] }) {
   const totalEksPages = Math.ceil(ekspedisiList.length / EKS_PER_PAGE)
   const pagedEks = ekspedisiList.slice((eksPage - 1) * EKS_PER_PAGE, eksPage * EKS_PER_PAGE)
 
-  function Pagination({ page, total, onChange }: { page: number; total: number; onChange: (p: number) => void }) {
-    if (total <= 1) return null
-    return (
-      <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 12 }}>
-        <button onClick={() => onChange(page - 1)} disabled={page <= 1} style={{
-          background: '#1e2433', border: 'none', borderRadius: 5, padding: '4px 10px',
-          color: page <= 1 ? '#2d3748' : '#94a3b8', cursor: page <= 1 ? 'not-allowed' : 'pointer', fontSize: 12,
-        }}>←</button>
-        {Array.from({ length: total }, (_, i) => i + 1).map(p => (
-          <button key={p} onClick={() => onChange(p)} style={{
-            background: p === page ? 'linear-gradient(135deg,#f97316,#ef4444)' : '#1e2433',
-            border: 'none', borderRadius: 5, padding: '4px 10px',
-            color: p === page ? '#fff' : '#94a3b8', cursor: 'pointer', fontSize: 12,
-            fontWeight: p === page ? 700 : 400,
-          }}>{p}</button>
-        ))}
-        <button onClick={() => onChange(page + 1)} disabled={page >= total} style={{
-          background: '#1e2433', border: 'none', borderRadius: 5, padding: '4px 10px',
-          color: page >= total ? '#2d3748' : '#94a3b8', cursor: page >= total ? 'not-allowed' : 'pointer', fontSize: 12,
-        }}>→</button>
-      </div>
-    )
-  }
-
   return (
     <div style={{ padding: 28 }}>
       <div style={{ marginBottom: 24 }}>
@@ -236,7 +267,7 @@ export default function UploadClient({ logs }: { logs: any[] }) {
           <form onSubmit={handleUpload} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <label style={lbl}>Ekspedisi *</label>
-              <select className="input-base" value={kurirId} onChange={e => setKurirId(e.target.value)} required>
+              <select className="input-base" value={kurirId} onChange={e => handleKurirChange(e.target.value)} required>
                 <option value="">-- Pilih Ekspedisi --</option>
                 {ekspedisiList.filter(k => k.aktif !== false).map(k => (
                   <option key={k.id} value={k.id}>{k.nama} ({k.kode})</option>

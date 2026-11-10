@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, Cell,
@@ -92,11 +92,17 @@ export default function OverviewClient({
   const isLionMode = selectedKurir === 'LION'
   const isAllKurir = !selectedKurir
 
-  useEffect(() => {
+  // Sinkronkan `initialTab` (dari query string) ke state tanpa useEffect.
+  // Pola "adjust state during render" dari React: bandingkan nilai prop sebelumnya,
+  // ubah state hanya saat prop benar-benar berubah, sehingga tidak memicu
+  // cascading render seperti setState di dalam effect.
+  const [lastInitialTab, setLastInitialTab] = useState(initialTab)
+  if (initialTab !== lastInitialTab) {
+    setLastInitialTab(initialTab)
     if (initialTab && initialTab !== activeTab) {
       setActiveTab(initialTab)
     }
-  }, [initialTab])
+  }
 
   // Daftar ekspedisi unik
   const kurirOptions = useMemo(() => {
@@ -193,9 +199,11 @@ export default function OverviewClient({
       diskon: number
     }> = []
 
-    filteredRecentTx.slice(0, 50).forEach((t: any) => {
+    filteredRecentTx.slice(0, 50).forEach((t: any, index: number) => {
       list.push({
-        id: `lion-${t.id || t.nomor_stt || Math.random()}`,
+        // Fallback memakai index (bukan Math.random) supaya key React stabil
+        // antar-render dan tidak memicu remount komponen baris.
+        id: `lion-${t.id || t.nomor_stt || `idx-${index}`}`,
         kurir_kode: 'LION',
         kurir_nama: 'Lion Parcel',
         kurir_warna: '#f97316',
@@ -210,10 +218,10 @@ export default function OverviewClient({
       })
     })
 
-    filteredJne.slice(0, 50).forEach((j: any) => {
+    filteredJne.slice(0, 50).forEach((j: any, index: number) => {
       const isLunas = num(j.outstanding) <= 0
       list.push({
-        id: `jne-${j.id || j.nomor_pl || Math.random()}`,
+        id: `jne-${j.id || j.nomor_pl || `idx-${index}`}`,
         kurir_kode: 'JNE',
         kurir_nama: 'JNE Express',
         kurir_warna: '#ef4444',
